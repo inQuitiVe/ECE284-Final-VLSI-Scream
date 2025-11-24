@@ -8,138 +8,142 @@ from config import bargs
 from data import *
 
 
-def train(trainloader, testloader, model):
-    criterion = nn.CrossEntropyLoss().to(bargs.device)
-    optimizer = optim.AdamW(model.parameters(), lr=bargs.init_lr, weight_decay=1e-5)
-    scheduler = optim.lr_scheduler.CosineAnnealingLR(
-        optimizer, T_max=bargs.epochs, eta_min=bargs.final_lr
-    )
+class ModelTrainer:
+    """r
+    Train and validate model
+    """
 
-    for epoch in range(1, bargs.epochs + 1):
-        for input, target in trainloader:
-            input, target = input.to(bargs.device), target.to(bargs.device)
+    def __init__(self, model, train_loader, test_loader, args):
+        self.model = model
+        self.train_loader = train_loader
+        self.test_loader = test_loader
+        self.args = args
+        self.device = args.device
 
-            output = model(input)
-            loss = criterion(output, target)
-            optimizer.zero_grad()
-            loss.backward()
-            optimizer.step()
-
-        if epoch % bargs.check_epoch == 0:
-            validate(testloader, model, epoch)
-
-        if epoch % bargs.save_epoch == 0:
-            torch.save(model.state_dict(), "./path/VGG16_4bit_" + str(epoch) + ".pth")
-            print(f"Model Successfully Saved!")
-
-        scheduler.step()
-
-
-def validate(testloader, model, epoch):
-    print_total = epoch % bargs.save_epoch == 0
-    mean_accuracy = []
-    with torch.no_grad():
-        for test_input, test_target in testloader:
-            test_input, test_target = test_input.to(bargs.device), test_target.to(
-                bargs.device
-            )
-            test_output = model(test_input)
-            accuracy = (test_output.argmax(dim=1) == test_target).float().mean() * 100
-            mean_accuracy.append(accuracy)
-            if not print_total:
-                print(f"Epoch {epoch}, Accuracy: {accuracy:.1f}%")
-                return
-
-        print(
-            f"Epoch {epoch}, Total Accuracy: {torch.mean(torch.Tensor(mean_accuracy)):.1f}%"
+        self.criterion = nn.CrossEntropyLoss().to(self.device)
+        self.optimizer = optim.AdamW(
+            model.parameters(), lr=args.init_lr, weight_decay=1e-5
+        )
+        self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
+            self.optimizer, T_max=args.epochs, eta_min=args.final_lr
         )
 
+    def run(self):
+        for epoch in range(1, self.args.epochs + 1):
+            self.model.train()
+            for input, target in self.train_loader:
+                input, target = input.to(self.device), target.to(self.device)
 
-def check_psum(model, loader, device="cuda"):
-    def psum_hook(module, input):
-        x_float = input[0]
-        weight_float = module.weight
+                output = self.model(input)
+                loss = self.criterion(output, target)
 
-        bit = module.bit
-        w_bit = module.weight_quant.w_bit  # 实际上是 3 (4-1)
-        w_alpha = module.weight_quant.wgt_alpha
-        a_bit = bit  # 4
-        a_alpha = module.act_alpha
+                self.optimizer.zero_grad()
+                loss.backward()
+                self.optimizer.step()
 
-        # 2. 计算整数权重 W_int
-        mean = weight_float.data.mean()
-        std = weight_float.data.std()
-        w_norm = weight_float.add(-mean).div(std)
-        w_div = w_norm.div(w_alpha)
-        w_clamped = w_div.clamp(min=-1, max=1)
-        w_scale_factor = 2**w_bit - 1
-        w_int = (w_clamped * w_scale_factor).round()
+            if epoch % self.args.check_epoch == 0:
+                self.validate(epoch)
 
-        # 3. 计算整数输入 X_int
-        x_div = x_float.div(a_alpha)
-        x_clamped = x_div.clamp(max=1)  # ReLU 之后通常 min 已经是 0
-        a_scale_factor = 2**a_bit - 1
-        x_int = (x_clamped * a_scale_factor).round()
+            if epoch % self.args.save_epoch == 0:
+                torch.save(
+                    self.model.state_dict(),
+                    f"./path/" + bargs.model_name + f"_{epoch}.pth",
+                )
+                print("Model Successfully Saved!")
 
-        # 4. 计算 Psum (整数卷积)
-        psum_int = F.conv2d(
-            x_int,
-            w_int,
-            bias=None,
-            stride=module.stride,
-            padding=module.padding,
-            dilation=module.dilation,
-            groups=module.groups,
+            self.scheduler.step()
+
+    def validate(self, epoch):
+        self.model.eval()
+        correct_count = 0
+        total_count = 0
+
+        with torch.no_grad():
+            for test_input, test_target in self.test_loader:
+                test_input = test_input.to(self.device)
+                test_target = test_target.to(self.device)
+                test_output = self.model(test_input)
+
+                preds = test_output.argmax(dim=1)
+                correct_count += (preds == test_target).sum().item()
+                total_count += test_target.size(0)
+
+        accuracy = (correct_count / total_count) * 100
+        print(f"Epoch {epoch}, Accuracy: {accuracy:.2f}%")
+
+    def extract_layer(self, layer_num=27, w_bit=4, act_bit=4):
+        print(f"Extracting data from Layer {layer_num}...")
+
+        captured = {}
+
+        def hook_curr_in(m, i):
+            captured["in"] = i[0].detach()
+
+        def hook_next_in(m, i):
+            captured["next_in"] = i[0].detach()
+
+        target_layer = self.model.features[layer_num]
+        next_layer = self.model.features[layer_num + 2]
+
+        h1 = target_layer.register_forward_pre_hook(hook_curr_in)
+        h2 = next_layer.register_forward_pre_hook(hook_next_in)
+
+        self.model.eval()
+        images, _ = next(iter(self.test_loader))
+        with torch.no_grad():
+            self.model(images.to(self.device))
+
+        h1.remove()
+        h2.remove()
+
+        w_alpha = target_layer.weight_quant.wgt_alpha
+        w_scale = w_alpha / (2 ** (w_bit - 1) - 1)
+        weight_int = torch.round(target_layer.weight_q / w_scale)
+
+        act_alpha = target_layer.act_alpha
+        a_scale = act_alpha / (2**act_bit - 1)
+        act_quant_fn = act_quantization(act_bit)
+        act_int = torch.round(act_quant_fn(captured["in"], act_alpha) / a_scale)
+
+        output_int = F.conv2d(
+            act_int[0].unsqueeze(0),
+            weight_int,
+            stride=target_layer.stride,
+            padding=target_layer.padding,
+        )
+        output_int = F.relu(output_int)
+
+        self._save_binary(weight_int, "./Files/weight_int.txt", w_bit)
+        self._save_binary(act_int[0], "./Files/input_int.txt", act_bit)
+        self._save_binary(
+            output_int, "./Files/output_int.txt", 13 if act_bit == 2 else 15
         )
 
-        # 5. 恢复 Psum (Recovered Psum)
-        w_step = w_alpha / w_scale_factor
-        a_step = a_alpha / a_scale_factor
+        output_recovered = output_int * w_scale * a_scale
+        output_ref = captured["next_in"][0].unsqueeze(0)
+        error = (output_recovered - output_ref).abs().mean()
 
-        psum_recovered = psum_int * w_step * a_step
+        print(f"Files generated. Verification Error: {error.item():.6f}")
 
-        # 6. 计算参考 Psum (Un-quantized / Float Psum)
-        psum_ref = F.conv2d(
-            x_float,
-            w_norm,  # 使用 Normalize 后的 float 权重
-            bias=None,
-            stride=module.stride,
-            padding=module.padding,
-            dilation=module.dilation,
-            groups=module.groups,
-        )
-
-        print("-" * 30)
-        print(f"Layer: {module}")
-        print(f"Checking Psum for Layer index 27...")
-        print(f"Input shape: {x_int.shape}")
-        print(f"X_int range: [{x_int.min().item()}, {x_int.max().item()}]")
-        print(f"W_int range: [{w_int.min().item()}, {w_int.max().item()}]")
-
-        mse = F.mse_loss(psum_recovered, psum_ref)
-        print(f"MSE Loss between Recovered and Ref: {mse.item():.6f}")
-
-        print(f"Recovered sample: {psum_recovered[0,0,0,:5].detach().cpu().numpy()}")
-        print(f"Reference sample: {psum_ref[0,0,0,:5].detach().cpu().numpy()}")
-        print("-" * 30)
-
-    target_layer = model.features[27]
-    hook_handle = target_layer.register_forward_hook(psum_hook)
-
-    model.eval()
-    with torch.no_grad():
-        inputs, _ = next(iter(loader))
-        inputs = inputs.to(device)
-        model(inputs)
-
-    hook_handle.remove()
+    def _save_binary(self, data, filename, bits):
+        flat_data = data.detach().cpu().numpy().flatten().astype(int)
+        mask = 2**bits - 1
+        with open(filename, "w") as f:
+            for num in flat_data:
+                f.write(f"{num & mask:0{bits}b}\n")
 
 
 if __name__ == "__main__":
-    model = VGG_quant("VGG16_quant").to(bargs.device)
-    model.load_state_dict(torch.load("./path/VGG16_4bit.pth"))
-    # print(model)
-    # print(model.features[27])
-    trainloader, testloader = get_data_loaders()
-    # check_psum(model, testloader)
-    train(trainloader, testloader, model)
+    model = VGG_quant(
+        vgg_name=bargs.model_name,
+        weight_bits=bargs.weight_bits,
+        act_bits=bargs.act_bits,
+    ).to(bargs.device)
+    model.load_state_dict(torch.load("./path/" + bargs.model_name + ".pth"))
+    print(model)
+    print(model.features[27])
+
+    train_loader, test_loader = get_data_loaders()
+    trainer = ModelTrainer(model, train_loader, test_loader, bargs)
+    trainer.run()
+    trainer.extract_layer(w_bit=bargs.weight_bits, act_bit=bargs.act_bits)

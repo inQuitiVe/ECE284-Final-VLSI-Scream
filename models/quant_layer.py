@@ -2,8 +2,6 @@ import torch.nn as nn
 import torch
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
-import random
-import numpy as np
 
 
 def weight_quantization(b):
@@ -11,6 +9,7 @@ def weight_quantization(b):
     def uniform_quant(x, b):
         xdiv = x.mul((2**b - 1))
         xhard = xdiv.round().div(2**b - 1)
+        # print('uniform quant bit: ', b)
         return xhard
 
     class _pq(torch.autograd.Function):
@@ -100,7 +99,8 @@ class QuantConv2d(nn.Conv2d):
         dilation=1,
         groups=1,
         bias=False,
-        bit=4,
+        weight_bits=4,
+        act_bits=4,
     ):
         super(QuantConv2d, self).__init__(
             in_channels,
@@ -113,9 +113,8 @@ class QuantConv2d(nn.Conv2d):
             bias,
         )
         self.layer_type = "QuantConv2d"
-        self.bit = bit
-        self.weight_quant = weight_quantize_fn(w_bit=self.bit)
-        self.act_alq = act_quantization(self.bit)
+        self.weight_quant = weight_quantize_fn(w_bit=weight_bits)
+        self.act_alq = act_quantization(act_bits)
         self.act_alpha = torch.nn.Parameter(torch.tensor(8.0))
         self.weight_q = torch.nn.Parameter(
             torch.zeros([out_channels, in_channels, kernel_size, kernel_size])
