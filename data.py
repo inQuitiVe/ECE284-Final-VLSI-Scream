@@ -4,8 +4,11 @@ import torchvision.transforms as transforms
 from config import bargs
 
 
-# CIFAR10 has 50,000 training data, and 10,000 validation data.
 def get_data_loaders():
+    """r
+    CIFAR10 has 50,000 training data, and 10,000 validation data.
+    Shape of data is (3, 32, 32)
+    """
     normalize = transforms.Normalize(
         mean=[0.491, 0.482, 0.447], std=[0.247, 0.243, 0.262]
     )
@@ -40,7 +43,7 @@ def get_data_loaders():
 
     trainloader = torch.utils.data.DataLoader(
         train_dataset,
-        batch_size=bargs.bsz,
+        batch_size=bargs.train_bsz,
         shuffle=True,
         num_workers=bargs.num_workers,
         drop_last=True,

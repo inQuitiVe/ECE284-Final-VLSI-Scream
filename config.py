@@ -5,10 +5,7 @@ import torch
 
 @dataclass
 class BaseConfig:
-    _dtype: torch.dtype = field(
-        default=torch.float32, metadata={"help": "data type"}
-    )  # WARN: Dtype Changed
-    bsz: int = 256
+    train_bsz: int = 256
     test_bsz: int = 1000
 
     epochs: int = 140
@@ -30,13 +27,13 @@ class BaseConfig:
         self.setup()
 
     def setup(self):
-        """Check Available Devices, Choose Name"""
+        """Check Available Devices, Select Model Name"""
         if torch.cuda.is_available():
-            self.device = "cuda"
+            self.device = torch.device("cuda")
         elif torch.backends.mps.is_available():
-            self.device = "mps"
+            self.device = torch.device("mps")
         else:
-            self.device = "cpu"
+            self.device = torch.device("cpu")
 
         if self.act_bits == 2:
             self.model_name = "VGG16_2bit"
