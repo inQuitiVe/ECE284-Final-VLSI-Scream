@@ -8,3 +8,11 @@ SIMD and Weight-Output reconfigurable 2D systolic array-based AI accelerator and
 5. whole model                    (tbd)
 6. huffman/rlc                    (gary/vincent)
 7. prob2 + prob3                  v
+
+# SW source request
+1. BN fusion parameter
+2. BN output
+3. BN + ReLU output
+4. BN + ReLU + MaxPool output
+5. os activation reordering
+6. os tiling reordering
