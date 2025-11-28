@@ -31,7 +31,8 @@ module mac_tile (
     reg [bw-1:0]         a_q, a_q_nxt;      // activation
     reg [bw-1:0]         b_q, b_q_nxt;      // weight
     reg [psum_bw-1:0]    c_q, c_q_nxt;      // psum
-    reg                  load_ready_q, load_ready_q_nxt; // WS: weight preload, OS: psum preload
+    // load_ready_q: init to 2'b11 for WS in 2 bit mode, load to b0 when 3, load b1 when 1
+    reg  [1:0]           load_ready_q, load_ready_q_nxt; // WS: weight preload, OS: psum preload
     wire [psum_bw-1:0]   mac_out;
     wire                 is_preload;
 
@@ -42,11 +43,12 @@ module mac_tile (
     assign out_s  = ~is_os ? mac_out : inst_q[2] ? c_q : in_n; 
     
     // WS mode: weight preload, OS mode: psum preload
-    assign is_preload = inst_w[0] & load_ready_q;
+    assign is_preload = inst_w[0] & |load_ready_q;
 
     mac #(.bw(bw), .psum_bw(psum_bw)) mac_instance (
         .a(a_q), 
-        .b(b_q),
+        .b0(b0_q),
+        .b1(b1_q),
         .c(c_q),
         .act_4b_mode(act_4b_mode),
         .out(mac_out)
@@ -58,18 +60,29 @@ module mac_tile (
         inst_q_nxt[1]       = inst_w[1];
         inst_q_nxt[2]       = inst_w[2]; // last data / flush psum
 
-        load_ready_q_nxt    = is_preload ? 0 : load_ready_q;
+        load_ready_q_nxt    = is_preload ? load_ready_q-1 : load_ready_q;
         
         a_q_nxt             = (inst_w[0] || inst_w[1]) ? in_w : a_q;
         
         if (is_os) begin
             // When flush (inst_w[2]), don't update b to prevent receiving flushed psum
-            b_q_nxt         = (inst_w[2] == 0 && (inst_w[0] || inst_w[1])) ? in_n[bw-1:0] : b_q;
+            b0_q_nxt         = (inst_w[2] == 0 && (inst_w[0] || inst_w[1])) ? in_n[bw-1:0] : b0_q;
+            if (act_4b_mode) begin
+                b1_q_nxt         = (inst_w[2] == 0 && (inst_w[0] || inst_w[1])) ? in_n[bw-1:0] : b1_q;
+            end else begin
+                b1_q_nxt         = (inst_w[2] == 0 && (inst_w[0] || inst_w[1])) ? in_n[2*bw-1:0] : b1_q;
+            end
             // preload psum when inst_w[0] && load_ready_q, save mac output when inst_w[1]
             // When flush (inst_w[2]), clear psum
             c_q_nxt         = inst_w[2] ? 0 : (is_preload ? in_n : (inst_w[1] ? mac_out : c_q));
         end else begin
-            b_q_nxt         = is_preload ? in_w : b_q;
+            if (act_4b_mode) begin
+                b0_q_nxt        = is_preload ? in_w : b0_q;
+                b1_q_nxt        = is_preload ? in_w : b1_q;
+            end else begin
+                b0_q_nxt        = (inst_w[0] && load_ready_q == 2'b11) ? in_w : b0_q;
+                b1_q_nxt        = (inst_w[0] && load_ready_q == 2'b01) ? in_w : b1_q;
+            end
             c_q_nxt         = in_n;
         end
         
@@ -79,20 +92,20 @@ module mac_tile (
     // Synchronous logic
     always @(posedge clk) begin
         if (reset) begin
-            inst_q        <= 0;
-            load_ready_q  <= 1;
-            a_q           <= 0;
-            b_q           <= 0;
-            c_q           <= 0;
+            inst_q         <= 0;
+            load_ready_q   <= ~is_os & ~act_4b_mode ? 2'b11 : 2'b01;
+            a_q            <= 0;
+            b0_q           <= 0;
+            b1_q           <= 0;
+            c_q            <= 0;
         end else begin
-            inst_q       <= inst_q_nxt;
-            load_ready_q <= load_ready_q_nxt;
-            a_q          <= a_q_nxt;
-            b_q          <= b_q_nxt;
-            c_q          <= c_q_nxt;
+            inst_q         <= inst_q_nxt;
+            load_ready_q   <= load_ready_q_nxt;
+            a_q            <= a_q_nxt;
+            b0_q           <= b0_q_nxt;
+            b1_q           <= b1_q_nxt;
+            c_q            <= c_q_nxt;
         end
     end
 
 endmodule
-
-
