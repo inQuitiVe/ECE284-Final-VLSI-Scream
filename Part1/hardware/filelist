@@ -1,4 +1,5 @@
-src/mac_flex.v
-src/os/mac_array.v
-src/os/mac_row.v
-src/os/mac_tile.v
+
+src/core_tb.v
+src/mac_array.v
+src/mac_row.v
+src/mac_tile.v
