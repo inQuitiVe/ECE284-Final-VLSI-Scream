@@ -54,7 +54,7 @@ reg l0_wr;
 reg execute;
 reg load;
 reg [8*30:1] stringvar;
-reg [8*30:1] w_file_name;
+reg [8*50:1] w_file_name;
 wire ofifo_valid;
 wire [col*psum_bw-1:0] sfp_out;
 
@@ -82,13 +82,24 @@ assign inst_q[1]   = execute_q;
 assign inst_q[0]   = load_q; 
 
 
-core  #(.bw(bw), .col(col), .row(row)) core_instance (
+core #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row)) core_instance (
 	.clk(clk), 
-	.inst(inst_q),
-	.ofifo_valid(ofifo_valid),
-        .D_xmem(D_xmem_q), 
-        .sfp_out(sfp_out), 
-	.reset(reset)); 
+  .reset(reset),
+  // high level instructions from TB
+  .inst_w(inst_w),
+  // L0 mem ctrls from TB
+  .CEN_xmem(CEN_xmem),
+  .WEN_xmem(WEN_xmem),
+  .A_xmem(A_xmem),
+  .D_xmem(D_xmem), 
+  // PSUM mem ctrls from TB
+  .CEN_pmem(),
+  .WEN_pmem(),
+  .A_pmem(),
+  // Output to TB
+  .valid(),
+  .sfp_out()
+	); 
 
 
 initial begin 
@@ -107,9 +118,9 @@ initial begin
   load     = 0;
 
   $dumpfile("core_tb.vcd");
-  $dumpvars(0,core_tb);
+  $dumpvars(0, core_tb);
 
-  x_file = $fopen("activation_tile0.txt", "r");
+  x_file = $fopen("golden/activation_tile0.txt", "r");
   // Following three lines are to remove the first three comment lines of the file
   x_scan_file = $fscanf(x_file,"%s", captured_data);
   x_scan_file = $fscanf(x_file,"%s", captured_data);
@@ -132,34 +143,41 @@ initial begin
   /////////////////////////
 
   /////// Activation data writing to memory ///////
+  $display("===================== Activation.txt Writing Start ====================");
   for (t=0; t<len_nij; t=t+1) begin  
     #0.5 clk = 1'b0;  x_scan_file = $fscanf(x_file,"%32b", D_xmem); WEN_xmem = 0; CEN_xmem = 0; if (t>0) A_xmem = A_xmem + 1;
     #0.5 clk = 1'b1;   
+    $display("Writing to address %5d", A_xmem);
   end
-
+  
   #0.5 clk = 1'b0;  WEN_xmem = 1;  CEN_xmem = 1; A_xmem = 0;
   #0.5 clk = 1'b1; 
 
   $fclose(x_file);
   /////////////////////////////////////////////////
+  $display("===================== Activation.txt Writing End ====================");
 
 
   for (kij=0; kij<9; kij=kij+1) begin  // kij loop
 
     case(kij)
-     0: w_file_name = "weight_itile0_otile0_kij0.txt";
-     1: w_file_name = "weight_itile0_otile0_kij1.txt";
-     2: w_file_name = "weight_itile0_otile0_kij2.txt";
-     3: w_file_name = "weight_itile0_otile0_kij3.txt";
-     4: w_file_name = "weight_itile0_otile0_kij4.txt";
-     5: w_file_name = "weight_itile0_otile0_kij5.txt";
-     6: w_file_name = "weight_itile0_otile0_kij6.txt";
-     7: w_file_name = "weight_itile0_otile0_kij7.txt";
-     8: w_file_name = "weight_itile0_otile0_kij8.txt";
+     0: w_file_name = "golden/weight_itile0_otile0_kij0.txt";
+     1: w_file_name = "golden/weight_itile0_otile0_kij1.txt";
+     2: w_file_name = "golden/weight_itile0_otile0_kij2.txt";
+     3: w_file_name = "golden/weight_itile0_otile0_kij3.txt";
+     4: w_file_name = "golden/weight_itile0_otile0_kij4.txt";
+     5: w_file_name = "golden/weight_itile0_otile0_kij5.txt";
+     6: w_file_name = "golden/weight_itile0_otile0_kij6.txt";
+     7: w_file_name = "golden/weight_itile0_otile0_kij7.txt";
+     8: w_file_name = "golden/weight_itile0_otile0_kij8.txt";
     endcase
     
 
     w_file = $fopen(w_file_name, "r");
+    if (w_file == 0) begin
+      $display("ERROR: cannot open file %s", w_file_name);
+      $finish;
+    end
     // Following three lines are to remove the first three comment lines of the file
     w_scan_file = $fscanf(w_file,"%s", captured_data);
     w_scan_file = $fscanf(w_file,"%s", captured_data);
@@ -185,27 +203,34 @@ initial begin
 
     /////// Kernel data writing to memory ///////
 
-    A_xmem = 11'b10000000000;
 
+    A_xmem = 11'b10000000000;
     for (t=0; t<col; t=t+1) begin  
       #0.5 clk = 1'b0;  w_scan_file = $fscanf(w_file,"%32b", D_xmem); WEN_xmem = 0; CEN_xmem = 0; if (t>0) A_xmem = A_xmem + 1; 
       #0.5 clk = 1'b1;  
+      $display("Weight.txt %3d Writing to address %5d", kij, A_xmem);
     end
 
     #0.5 clk = 1'b0;  WEN_xmem = 1;  CEN_xmem = 1; A_xmem = 0;
     #0.5 clk = 1'b1; 
+
     /////////////////////////////////////
 
 
-
     /////// Kernel data writing to L0 ///////
-    ...
+    A_xmem = 11'b10000000000;
+    for (t=0; t<col; t=t+1) begin  
+      #0.5 clk = 1'b0; WEN_xmem = 1; CEN_xmem = 0; inst_w = 2'b01; if (t>0) A_xmem = A_xmem + 1;
+      #0.5 clk = 1'b1;  
+      $display("Kernel %3d Loading to L0FIFO", kij);
+    end
+    
     /////////////////////////////////////
 
 
 
     /////// Kernel loading to PEs ///////
-    ...
+    // ...
     /////////////////////////////////////
   
 
@@ -215,7 +240,7 @@ initial begin
     #0.5 clk = 1'b1;  
   
 
-    for (i=0; i<10 ; i=i+1) begin
+    for (i=0; i<20 ; i=i+1) begin
       #0.5 clk = 1'b0;
       #0.5 clk = 1'b1;  
     end
@@ -224,13 +249,13 @@ initial begin
 
 
     /////// Activation data writing to L0 ///////
-    ...
+    // ...
     /////////////////////////////////////
 
 
 
     /////// Execution ///////
-    ...
+    // ...
     /////////////////////////////////////
 
 
@@ -238,15 +263,19 @@ initial begin
     //////// OFIFO READ ////////
     // Ideally, OFIFO should be read while execution, but we have enough ofifo
     // depth so we can fetch out after execution.
-    ...
+    // ...
     /////////////////////////////////////
 
 
   end  // end of kij loop
 
 
+
+
+
+
   ////////// Accumulation /////////
-  out_file = $fopen("out.txt", "r");  
+  out_file = $fopen("golden/out.txt", "r");  
 
   // Following three lines are to remove the first three comment lines of the file
   out_scan_file = $fscanf(out_file,"%s", answer); 
