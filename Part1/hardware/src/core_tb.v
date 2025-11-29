@@ -41,6 +41,9 @@ reg load_q = 0;
 reg acc_q = 0;
 reg acc = 0;
 
+
+reg [3:0] kij_q;
+
 reg [1:0]  inst_w; 
 reg [bw*row-1:0] D_xmem;
 reg [psum_bw*col-1:0] answer;
@@ -93,11 +96,11 @@ core #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row)) core_instance (
   .A_xmem(A_xmem),
   .D_xmem(D_xmem), 
   // PSUM mem ctrls from TB
-  .CEN_pmem(),
-  .WEN_pmem(),
-  .A_pmem(),
+  // .CEN_pmem(),
+  // .WEN_pmem(),
+  // .A_pmem(),
   // Output to TB
-  .valid(),
+  .kij(kij_q),
   .sfp_out()
 	); 
 
@@ -116,6 +119,7 @@ initial begin
   l0_wr    = 0;
   execute  = 0;
   load     = 0;
+  kij_q    = 0;
 
   $dumpfile("core_tb.vcd");
   $dumpvars(0, core_tb);
@@ -160,6 +164,9 @@ initial begin
 
   for (kij=0; kij<9; kij=kij+1) begin  // kij loop
 
+
+    kij_q = kij;
+
     case(kij)
      0: w_file_name = "golden/weight_itile0_otile0_kij0.txt";
      1: w_file_name = "golden/weight_itile0_otile0_kij1.txt";
@@ -197,13 +204,11 @@ initial begin
     #0.5 clk = 1'b0;   
     #0.5 clk = 1'b1;   
 
-
+    // 
 
 
 
     /////// Kernel data writing to memory ///////
-
-
     A_xmem = 11'b10000000000;
     for (t=0; t<col; t=t+1) begin  
       #0.5 clk = 1'b0;  w_scan_file = $fscanf(w_file,"%32b", D_xmem); WEN_xmem = 0; CEN_xmem = 0; if (t>0) A_xmem = A_xmem + 1; 
@@ -230,17 +235,16 @@ initial begin
 
 
     /////// Kernel loading to PEs ///////
-    // ...
+    // control signal generated in core.v
     /////////////////////////////////////
   
 
 
     ////// provide some intermission to clear up the kernel loading ///
-    #0.5 clk = 1'b0;  load = 0; l0_rd = 0;
+    #0.5 clk = 1'b0;  inst_w = 2'b00; WEN_xmem = 1; CEN_xmem = 1;
     #0.5 clk = 1'b1;  
   
-
-    for (i=0; i<20 ; i=i+1) begin
+    for (i=0; i<10 ; i=i+1) begin
       #0.5 clk = 1'b0;
       #0.5 clk = 1'b1;  
     end
@@ -249,13 +253,26 @@ initial begin
 
 
     /////// Activation data writing to L0 ///////
-    // ...
+    A_xmem = 11'b00000000000;
+    for (t=0; t<len_nij; t=t+1) begin  
+      #0.5 clk = 1'b0; WEN_xmem = 1; CEN_xmem = 0; inst_w = 2'b10; if (t>0) A_xmem = A_xmem + 1;
+      #0.5 clk = 1'b1;  
+      $display("Activation t=%2d Loading to L0FIFO", t);
+    end
     /////////////////////////////////////
 
 
 
     /////// Execution ///////
-    // ...
+    ////// provide some intermission to clear up the activation running ///
+    #0.5 clk = 1'b0;  WEN_xmem = 1; CEN_xmem = 1; inst_w = 2'b00;
+    #0.5 clk = 1'b1;  
+  
+    for (i=0; i<30 ; i=i+1) begin
+      #0.5 clk = 1'b0;
+      #0.5 clk = 1'b1;  
+    end
+    /////////////////////////////////////
     /////////////////////////////////////
 
 

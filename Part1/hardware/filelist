@@ -1,13 +1,16 @@
 src/core_tb.v
 src/core.v
 src/corelet.v
+src/SFU.v
 src/Mac/mac_array.v
 src/Mac/mac_row.v
 src/Mac/mac_tile.v
 src/Mac/mac.v
 src/sram_32b_w2048.v
+src/sram_128b_w16_RW.v
 src/L0_FIFO/fifo_depth64.v
 src/L0_FIFO/fifo_mux_2_1.v
 src/L0_FIFO/fifo_mux_8_1.v
 src/L0_FIFO/fifo_mux_16_1.v
 src/L0_FIFO/l0.v
+src/OFIFO/ofifo.v

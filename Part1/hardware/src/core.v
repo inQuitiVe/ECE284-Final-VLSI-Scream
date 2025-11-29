@@ -16,18 +16,27 @@ module core #(
     input   [10:0]  A_xmem,
     input   [bw*col-1:0] D_xmem, //32b
 
-    // PSUM mem ctrls from TB
-    input           CEN_pmem,
-    input           WEN_pmem,
-    input   [10:0]  A_pmem,
+    // // PSUM mem ctrls from TB
+    // input           CEN_pmem,
+    // input           WEN_pmem,
+    // input   [10:0]  A_pmem,
 
-    // Output to TB
-    output          valid,
+    // from/to TB
+    input [3:0]     kij,  //for SFU
     output  [psum_bw*col-1:0] sfp_out //16*8b
 );
 
 // Wires
 wire [row*bw-1:0] L0fifo_data_in;  //32b
+
+// PSUM mem
+wire [psum_bw*col-1:0]  Q_pmem; //128b
+wire  ren_pmem;
+wire  wen_pmem;
+wire [3:0]              w_A_pmem; //w=16
+wire [3:0]              r_A_pmem; //w=16
+wire [psum_bw*col-1:0]  D_pmem; //128b
+
 
 reg [1:0]  inst_w_D1; //due to memory's latency, inst_w has to be delayed 1 cycle before passing into corelet.v 
 always @(posedge clk ) begin
@@ -40,8 +49,7 @@ end
 
 
 // Output Logic
-assign valid = 1'b0;
-assign sfp_out = {(psum_bw*col){1'b0}};
+assign sfp_out = D_pmem;
 
 sram_32b_w2048 X_MEM_instance(
   // given by core_tb
@@ -54,20 +62,30 @@ sram_32b_w2048 X_MEM_instance(
   .Q(L0fifo_data_in)  //32 bit
 );
 
-sram_32b_w2048 P_MEM_instance(
+sram_128b_w16_RW P_MEM_instance(
   .CLK(clk),
-  .CEN(), 
-  .WEN(), 
-  .A(),
-  .D(), 
-  .Q()
+  .ren(ren_pmem), 
+  .wen(wen_pmem), 
+  .w_A(w_A_pmem),
+  .r_A(r_A_pmem),
+  .D(D_pmem), 
+  .Q(Q_pmem)
 );
 
 corelet #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row)) corelet_instance(
   .clk(clk),
   .reset(reset),
   .inst_w(inst_w_D1),
-  .vector_data_in(L0fifo_data_in)
+  .vector_data_in(L0fifo_data_in),
+  // data in and ctrl signal for PSUM SRAM
+  .Q_pmem(Q_pmem),  
+  .ren_pmem(ren_pmem),
+  .wen_pmem(wen_pmem),
+  .w_A_pmem(w_A_pmem),
+  .r_A_pmem(r_A_pmem),
+  .D_pmem(D_pmem),
+  // for SFU
+  .kij(kij)
 );
 
 

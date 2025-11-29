@@ -9,9 +9,17 @@ module corelet #(
 
     // high level instructions from TB
     input   [1:0]   inst_w,
-    input   [row*bw-1:0] vector_data_in
+    input   [row*bw-1:0] vector_data_in,
     
-    // SFU and OFIFO is somewhat more complex
+    // PSUM mem
+    input  [psum_bw*col-1:0]  Q_pmem,  
+    output ren_pmem,
+    output wen_pmem,
+    output [3:0]              w_A_pmem,
+    output [3:0]              r_A_pmem,
+    output [psum_bw*col-1:0]  D_pmem,
+    // For SFU
+    input  [3:0]            kij
 );
 
 
@@ -29,9 +37,12 @@ always @(posedge clk ) begin
 end
 
 
-// L0 fifo output
-wire [row*bw-1:0]     mac_array_data_in;
 
+wire [row*bw-1:0]     mac_array_data_in;  // connect to l0fifo.out
+wire [col*psum_bw-1:0]     mac_array_data_out; // connect to ofifo.in
+wire [col*psum_bw-1:0]     ofifo_data_out; // connect to SFU
+wire [col-1:0]        ofifo_wr;  // connect to mac_array.valid
+wire                  ofifo_valid; //self connected to ofifo.rd, i.e. no latency
 
 
 l0 #(.bw(bw), .row(row)) L0fifo_instance(
@@ -48,11 +59,42 @@ l0 #(.bw(bw), .row(row)) L0fifo_instance(
 mac_array #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row))mac_array_instance(
     .clk(clk), 
     .reset(reset), 
-    .out_s(), 
+    .out_s(mac_array_data_out), 
     .in_w(mac_array_data_in), 
-    .in_n(), 
+    .in_n({(psum_bw*col){1'b0}}), 
     .inst_w(inst_w_D2), 
-    .valid()
+    .valid(ofifo_wr)
+);
+
+
+ofifo #(.bw(psum_bw), .col(col)) ofifo_instance(
+    .clk(clk), 
+    .reset(reset),
+
+    .in(mac_array_data_out), 
+    .out(ofifo_data_out), 
+    .rd(ofifo_valid), 
+    .wr(ofifo_wr), 
+    .o_full(), 
+    .o_ready(), 
+    .o_valid(ofifo_valid)
+);
+
+SFU #(.psum_bw(psum_bw), .col(col)) SFU_instance(
+    .clk(clk),
+    .reset(reset),
+    // sense signal from ofifo and output ctrl
+    .ofifo_valid(ofifo_valid),
+    .ofifo_data(ofifo_data_out),
+    // data in and ctrl signal for PSUM SRAM
+    .Q_pmem(Q_pmem),  
+    .ren_pmem(ren_pmem),
+    .wen_pmem(wen_pmem),
+    .w_A_pmem(w_A_pmem),
+    .r_A_pmem(r_A_pmem),
+    .D_pmem(D_pmem),
+    // output, valid
+    .kij(kij)
 );
 
 

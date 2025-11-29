@@ -36,7 +36,7 @@ always @(*) begin
 	inst_nxt[0] = (~load_ready_q)? inst_w[0] : inst_q[0];
 	inst_nxt[1] = inst_w[1];
 	a_nxt       = (inst_w[0] | inst_w[1])   ? in_w : a_q;
-	c_nxt = c_q;
+	c_nxt = in_n;
 
 	if (inst_w[0] & load_ready_q) begin
 		b_nxt = in_w;
