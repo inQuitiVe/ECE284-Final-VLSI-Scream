@@ -16,6 +16,9 @@ class BaseConfig:
     init_lr: float = 5e-3
     final_lr: float = 4e-4
 
+    tile_size: int = 8
+    pe_config: str = "ws"  # os
+
     # update_steps: int = 5
     # cosine_point: float = 0.7
     # flat_point: float = 0.2
@@ -37,8 +40,12 @@ class BaseConfig:
 
         if self.act_bits == 2:
             self.model_name = "VGG16_2bit"
+            self.channel = 16
         elif self.act_bits == 4:
             self.model_name = "VGG16_4bit"
+            self.channel = 8
+
+        self.tile_image_size = self.channel // self.tile_size
 
 
 bargs = BaseConfig()

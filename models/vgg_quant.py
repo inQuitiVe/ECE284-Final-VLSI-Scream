@@ -90,6 +90,7 @@ cfg = {
 }
 
 
+@torch.compile
 class VGG_quant(nn.Module):
     def __init__(self, vgg_name, weight_bits=4, act_bits=4):
         super(VGG_quant, self).__init__()
