@@ -29,7 +29,7 @@ module mac_tile (
     // logic registers
     reg [2:0]            inst_q, inst_q_nxt;
     reg [bw-1:0]         a_q, a_q_nxt;      // activation
-    reg [bw-1:0]         b_q, b_q_nxt;      // weight
+    reg [bw-1:0]         b0_q, b0_q_nxt, b1_q, b1_q_nxt;      // weight
     reg [psum_bw-1:0]    c_q, c_q_nxt;      // psum
     // load_ready_q: init to 2'b11 for WS in 2 bit mode, load to b0 when 3, load b1 when 1
     reg  [1:0]           load_ready_q, load_ready_q_nxt; // WS: weight preload, OS: psum preload

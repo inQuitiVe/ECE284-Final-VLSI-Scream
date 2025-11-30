@@ -47,7 +47,7 @@ module mac_array (clk, reset, out_s, in_w, in_n, inst_w, valid, is_os, act_2b_mo
         .in_n(out_bus[i*col*psum_bw-1 : (i-1)*col*psum_bw]), 
         .out_s(out_bus[(i+1)*col*psum_bw-1 : i*col*psum_bw]),  
         .in_w(in_w[i*bw-1 : (i-1)*bw]), 
-        .inst_w(inst_bus[i*2-1 : (i-1)*2]),
+        .inst_w({1'b0, inst_bus[i*2-1 : (i-1)*2]}),
         .valid(valid_bus[col*i-1 : col*(i-1)]),
         .is_os(is_os),
         .act_2b_mode(act_2b_mode)

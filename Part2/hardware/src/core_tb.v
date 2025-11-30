@@ -66,7 +66,7 @@ core #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row)) core_instance (
   // high level instructions from TB
   .inst_w(inst_w),
   .is_os(is_os),
-  .act_2b_mode(act_2b_mode)
+  .act_2b_mode(act_2b_mode),
   // L0 mem ctrls from TB
   .CEN_xmem(CEN_xmem),
   .WEN_xmem(WEN_xmem),
@@ -79,7 +79,7 @@ core #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row)) core_instance (
   // Output to TB
   .kij(kij_q),
   .readout_start(readout_start),
-  .readout(readout),
+  .readout(readout)
 	); 
 
 

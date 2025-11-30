@@ -1,4 +1,4 @@
-module mac (out, a, b, c, act_2b_mode);
+module mac (out, a, b0, b1, c, act_2b_mode);
 
     parameter bw = 4;
     parameter psum_bw = 16;
