@@ -91,8 +91,8 @@ module SFU #(
         end
         else begin
             if(ofifo_valid)begin    // in case ofifo_valid was inserted bubble
-                if(nij_cnt == 6'd35)begin
-                    nij_cnt <= 6'd0;
+                if(nij_cnt == 6'd36)begin
+                    nij_cnt <= 6'd36;  // stuck nij here so that wen_pmem doesn't be pulled high
                 end
                 else begin
                     nij_cnt <= nij_cnt + 1'b1;

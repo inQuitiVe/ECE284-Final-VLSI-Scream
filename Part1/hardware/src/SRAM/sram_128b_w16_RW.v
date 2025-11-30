@@ -22,6 +22,23 @@ module sram_128b_w16_RW (CLK, D, Q, ren, wen, w_A, r_A);
    wire [15:0] out_och6_nij0 = memory[0][111:96];
    wire [15:0] out_och7_nij0 = memory[0][127:112];
 
+   wire [15:0] out_nij0 = memory[0][15:0];
+   wire [15:0] out_nij1 = memory[1][15:0];
+   wire [15:0] out_nij2 = memory[2][15:0];
+   wire [15:0] out_nij3 = memory[3][15:0];
+   wire [15:0] out_nij4 = memory[4][15:0];
+   wire [15:0] out_nij5 = memory[5][15:0];
+   wire [15:0] out_nij6 = memory[6][15:0];
+   wire [15:0] out_nij7 = memory[7][15:0];
+   wire [15:0] out_nij8 = memory[8][15:0];
+   wire [15:0] out_nij9 = memory[9][15:0];
+   wire [15:0] out_nij10 = memory[10][15:0];
+   wire [15:0] out_nij11 = memory[11][15:0];
+   wire [15:0] out_nij12 = memory[12][15:0];
+   wire [15:0] out_nij13 = memory[13][15:0];
+   wire [15:0] out_nij14 = memory[14][15:0];
+   wire [15:0] out_nij15 = memory[15][15:0];
+
 
   reg [127:0] memory [num-1:0];
   reg [3:0] add_q;
