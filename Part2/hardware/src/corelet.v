@@ -18,6 +18,8 @@ module corelet #(
     output [3:0]              w_A_pmem,
     output [3:0]              r_A_pmem,
     output [psum_bw*col-1:0]  D_pmem,
+    input  is_os,
+    input  act_2b_mode,
     // For SFU
     input  [3:0]            kij,
     input           readout_start, //trigger for output stage
@@ -65,6 +67,8 @@ mac_array #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row))mac_array_instance(
     .in_w(mac_array_data_in), 
     .in_n({(psum_bw*col){1'b0}}), 
     .inst_w(inst_w_D2), 
+    .is_os(is_os),
+    .act_2b_mode(act_2b_mode),
     .valid(ofifo_wr)
 );
 

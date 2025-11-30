@@ -1,6 +1,6 @@
 // Created by prof. Mingu Kang @VVIP Lab in UCSD ECE department
 // Please do not spread this code without permission 
-module mac_array (clk, reset, out_s, in_w, in_n, inst_w, valid);
+module mac_array (clk, reset, out_s, in_w, in_n, inst_w, valid, is_os, act_2b_mode);
 
   parameter bw = 4;
   parameter psum_bw = 16;
@@ -13,6 +13,8 @@ module mac_array (clk, reset, out_s, in_w, in_n, inst_w, valid);
   input  [1:0] inst_w; // inst[1]:execute, inst[0]: kernel loading
   input  [psum_bw*col-1:0] in_n;
   output [col-1:0] valid;
+  input  is_os;
+  input  act_2b_mode;
 
   wire  [(row+1)*col*psum_bw-1:0] out_bus;
   assign out_bus[col*psum_bw-1:0] = in_n;
@@ -46,7 +48,9 @@ module mac_array (clk, reset, out_s, in_w, in_n, inst_w, valid);
         .out_s(out_bus[(i+1)*col*psum_bw-1 : i*col*psum_bw]),  
         .in_w(in_w[i*bw-1 : (i-1)*bw]), 
         .inst_w(inst_bus[i*2-1 : (i-1)*2]),
-        .valid(valid_bus[col*i-1 : col*(i-1)])
+        .valid(valid_bus[col*i-1 : col*(i-1)]),
+        .is_os(is_os),
+        .act_2b_mode(act_2b_mode)
       );
     end
   endgenerate

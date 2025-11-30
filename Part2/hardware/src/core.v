@@ -15,7 +15,8 @@ module core #(
     input           WEN_xmem,
     input   [10:0]  A_xmem,
     input   [bw*col-1:0] D_xmem, //32b
-
+    input           is_os,
+    input           act_2b_mode,
     // // PSUM mem ctrls from TB
     // input           CEN_pmem,
     // input           WEN_pmem,
@@ -85,6 +86,8 @@ corelet #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row)) corelet_instance(
   .w_A_pmem(w_A_pmem),
   .r_A_pmem(r_A_pmem),
   .D_pmem(D_pmem),
+  .is_os(is_os),
+  .act_2b_mode(act_2b_mode),
   // for SFU
   .kij(kij),
   .readout_start(readout_start),

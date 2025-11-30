@@ -42,6 +42,8 @@ reg [bw*row-1:0] D_xmem;
 reg [psum_bw*col-1:0] answer;
 reg readout_start;
 wire [psum_bw*col-1:0] readout;
+reg is_os;
+reg act_2b_mode;
 
 
 reg [8*30:1] stringvar;
@@ -63,6 +65,8 @@ core #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row)) core_instance (
   .reset(reset),
   // high level instructions from TB
   .inst_w(inst_w),
+  .is_os(is_os),
+  .act_2b_mode(act_2b_mode)
   // L0 mem ctrls from TB
   .CEN_xmem(CEN_xmem),
   .WEN_xmem(WEN_xmem),
@@ -75,7 +79,7 @@ core #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row)) core_instance (
   // Output to TB
   .kij(kij_q),
   .readout_start(readout_start),
-  .readout(readout)
+  .readout(readout),
 	); 
 
 
@@ -88,6 +92,8 @@ initial begin
   A_xmem   = 0;
   kij_q    = 0;
   readout_start = 0;
+  is_os = 0;
+  act_2b_mode = 0;
 
   $dumpfile("core_tb.vcd");
   $dumpvars(0, core_tb);
