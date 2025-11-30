@@ -19,7 +19,9 @@ module corelet #(
     output [3:0]              r_A_pmem,
     output [psum_bw*col-1:0]  D_pmem,
     // For SFU
-    input  [3:0]            kij
+    input  [3:0]            kij,
+    input           readout_start, //trigger for output stage
+    output  [psum_bw*col-1:0] readout //16*8b
 );
 
 
@@ -94,7 +96,9 @@ SFU #(.psum_bw(psum_bw), .col(col)) SFU_instance(
     .r_A_pmem(r_A_pmem),
     .D_pmem(D_pmem),
     // output, valid
-    .kij(kij)
+    .kij(kij),
+    .readout_start(readout_start),
+    .readout(readout) //16*8b
 );
 
 

@@ -13,14 +13,14 @@ module sram_128b_w16_RW (CLK, D, Q, ren, wen, w_A, r_A);
   parameter num = 16;
 
    //   debug wire
-   wire [15:0] out_och0_nij12 = memory[15][15:0];
-   wire [15:0] out_och1_nij12 = memory[15][31:16];
-   wire [15:0] out_och2_nij12 = memory[15][47:32];
-   wire [15:0] out_och3_nij12 = memory[15][63:48];
-   wire [15:0] out_och4_nij12 = memory[15][79:64];
-   wire [15:0] out_och5_nij12 = memory[15][95:80];
-   wire [15:0] out_och6_nij12 = memory[15][111:96];
-   wire [15:0] out_och7_nij12 = memory[15][127:112];
+   wire [15:0] out_och0_nij0 = memory[0][15:0];
+   wire [15:0] out_och1_nij0 = memory[0][31:16];
+   wire [15:0] out_och2_nij0 = memory[0][47:32];
+   wire [15:0] out_och3_nij0 = memory[0][63:48];
+   wire [15:0] out_och4_nij0 = memory[0][79:64];
+   wire [15:0] out_och5_nij0 = memory[0][95:80];
+   wire [15:0] out_och6_nij0 = memory[0][111:96];
+   wire [15:0] out_och7_nij0 = memory[0][127:112];
 
 
   reg [127:0] memory [num-1:0];

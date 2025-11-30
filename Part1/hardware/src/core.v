@@ -23,7 +23,8 @@ module core #(
 
     // from/to TB
     input [3:0]     kij,  //for SFU
-    output  [psum_bw*col-1:0] sfp_out //16*8b
+    input           readout_start, //trigger for output stage
+    output  [psum_bw*col-1:0] readout //16*8b
 );
 
 // Wires
@@ -85,7 +86,9 @@ corelet #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row)) corelet_instance(
   .r_A_pmem(r_A_pmem),
   .D_pmem(D_pmem),
   // for SFU
-  .kij(kij)
+  .kij(kij),
+  .readout_start(readout_start),
+  .readout(readout) //16*8b
 );
 
 

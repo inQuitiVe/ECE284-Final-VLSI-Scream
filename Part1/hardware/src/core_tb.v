@@ -15,7 +15,6 @@ parameter len_nij = 36;
 reg clk = 0;
 reg reset = 1;
 
-wire [33:0] inst_q; 
 
 reg [1:0]  inst_w_q = 0; 
 reg [bw*row-1:0] D_xmem_q = 0;
@@ -31,13 +30,7 @@ reg [10:0] A_pmem = 0;
 reg CEN_pmem_q = 1;
 reg WEN_pmem_q = 1;
 reg [10:0] A_pmem_q = 0;
-reg ofifo_rd_q = 0;
-reg ififo_wr_q = 0;
-reg ififo_rd_q = 0;
-reg l0_rd_q = 0;
-reg l0_wr_q = 0;
-reg execute_q = 0;
-reg load_q = 0;
+
 reg acc_q = 0;
 reg acc = 0;
 
@@ -47,15 +40,10 @@ reg [3:0] kij_q;
 reg [1:0]  inst_w; 
 reg [bw*row-1:0] D_xmem;
 reg [psum_bw*col-1:0] answer;
+reg readout_start;
+wire [psum_bw*col-1:0] readout;
 
 
-reg ofifo_rd;
-reg ififo_wr;
-reg ififo_rd;
-reg l0_rd;
-reg l0_wr;
-reg execute;
-reg load;
 reg [8*30:1] stringvar;
 reg [8*50:1] w_file_name;
 wire ofifo_valid;
@@ -68,21 +56,6 @@ integer out_file, out_scan_file ; // file_handler
 integer captured_data; 
 integer t, i, j, k, kij;
 integer error;
-
-assign inst_q[33] = acc_q;
-assign inst_q[32] = CEN_pmem_q;
-assign inst_q[31] = WEN_pmem_q;
-assign inst_q[30:20] = A_pmem_q;
-assign inst_q[19]   = CEN_xmem_q;
-assign inst_q[18]   = WEN_xmem_q;
-assign inst_q[17:7] = A_xmem_q;
-assign inst_q[6]   = ofifo_rd_q;
-assign inst_q[5]   = ififo_wr_q;
-assign inst_q[4]   = ififo_rd_q;
-assign inst_q[3]   = l0_rd_q;
-assign inst_q[2]   = l0_wr_q;
-assign inst_q[1]   = execute_q; 
-assign inst_q[0]   = load_q; 
 
 
 core #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row)) core_instance (
@@ -101,7 +74,8 @@ core #(.bw(bw), .psum_bw(psum_bw), .col(col), .row(row)) core_instance (
   // .A_pmem(),
   // Output to TB
   .kij(kij_q),
-  .sfp_out()
+  .readout_start(readout_start),
+  .readout(readout)
 	); 
 
 
@@ -112,14 +86,8 @@ initial begin
   CEN_xmem = 1;
   WEN_xmem = 1;
   A_xmem   = 0;
-  ofifo_rd = 0;
-  ififo_wr = 0;
-  ififo_rd = 0;
-  l0_rd    = 0;
-  l0_wr    = 0;
-  execute  = 0;
-  load     = 0;
   kij_q    = 0;
+  readout_start = 0;
 
   $dumpfile("core_tb.vcd");
   $dumpvars(0, core_tb);
@@ -305,41 +273,28 @@ initial begin
 
   $display("############ Verification Start during accumulation #############"); 
 
+  
+
+  #0.5 clk = 1'b0; readout_start = 1'b1;
+  #0.5 clk = 1'b1; 
+
   for (i=0; i<len_onij+1; i=i+1) begin 
-
+    #0.5 clk = 1'b0; readout_start = 1'b0;
+    
+    if(i>0) begin
+      out_scan_file = $fscanf(out_file,"%128b", answer); // reading from out file to answer
+      if (readout == answer)
+        $display("%2d-th output featuremap Data matched! :D", i); 
+      else begin
+        $display("%2d-th output featuremap Data ERROR!!", i); 
+        $display("sfpout: %128b", readout);
+        $display("answer: %128b", answer);
+        error = 1;
+      end
+    end
     #0.5 clk = 1'b0; 
-    #0.5 clk = 1'b1; 
+    #0.5 clk = 1'b1;
 
-    if (i>0) begin
-     out_scan_file = $fscanf(out_file,"%128b", answer); // reading from out file to answer
-       if (sfp_out == answer)
-         $display("%2d-th output featuremap Data matched! :D", i); 
-       else begin
-         $display("%2d-th output featuremap Data ERROR!!", i); 
-         $display("sfpout: %128b", sfp_out);
-         $display("answer: %128b", answer);
-         error = 1;
-       end
-    end
-   
- 
-    #0.5 clk = 1'b0; reset = 1;
-    #0.5 clk = 1'b1;  
-    #0.5 clk = 1'b0; reset = 0; 
-    #0.5 clk = 1'b1;  
-
-    for (j=0; j<len_kij+1; j=j+1) begin 
-
-      #0.5 clk = 1'b0;   
-        if (j<len_kij) begin CEN_pmem = 0; WEN_pmem = 1; acc_scan_file = $fscanf(acc_file,"%11b", A_pmem); end
-                       else  begin CEN_pmem = 1; WEN_pmem = 1; end
-
-        if (j>0)  acc = 1;  
-      #0.5 clk = 1'b1;   
-    end
-
-    #0.5 clk = 1'b0; acc = 0;
-    #0.5 clk = 1'b1; 
   end
 
 
@@ -370,14 +325,8 @@ always @ (posedge clk) begin
    CEN_pmem_q <= CEN_pmem;
    WEN_pmem_q <= WEN_pmem;
    A_xmem_q   <= A_xmem;
-   ofifo_rd_q <= ofifo_rd;
    acc_q      <= acc;
-   ififo_wr_q <= ififo_wr;
-   ififo_rd_q <= ififo_rd;
-   l0_rd_q    <= l0_rd;
-   l0_wr_q    <= l0_wr ;
-   execute_q  <= execute;
-   load_q     <= load;
+
 end
 
 
