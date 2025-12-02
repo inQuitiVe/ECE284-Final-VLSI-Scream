@@ -2,6 +2,13 @@
 // Please do not spread this code without permission 
 `timescale 1ns/1ps
 
+// Mode selection:
+//   - Define ACT_2BIT for 2-bit activation mode (act_2b_mode = 1)
+//   - Undefine ACT_2BIT for 4-bit activation mode (act_2b_mode = 0, default)
+//   - Define IS_OS for Output Stationary mode (is_os = 1)
+//   - Undefine IS_OS for Weight Stationary mode (is_os = 0, default)
+
+
 module core_tb;
 
   parameter bw      = 4;
@@ -69,8 +76,20 @@ module core_tb;
     A_xmem       = 0;
     kij_SFUctrl  = 0;
     readout_start = 0;
-    is_os        = 0;
-    act_2b_mode  = 0;
+    `ifdef IS_OS
+        is_os        = 1;  // Output Stationary mode
+        $display("## Running in OS mode (IS_OS defined)");
+    `else
+        is_os        = 0;  // Weight Stationary mode (default)
+        $display("## Running in WS mode (IS_OS not defined)");
+    `endif
+    `ifdef ACT_2BIT
+        act_2b_mode  = 1;  // 2-bit activation mode
+        $display("## Running in 2-bit activation mode (ACT_2BIT defined)");
+    `else
+        act_2b_mode  = 0;  // 4-bit activation mode (default)
+        $display("## Running in 4-bit activation mode (ACT_2BIT not defined)");
+    `endif
 
     $dumpfile("core_tb.vcd");
     $dumpvars(0, core_tb);
