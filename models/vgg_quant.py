@@ -1,4 +1,6 @@
+import torch
 import torch.nn as nn
+import copy
 from .quant_layer import *
 
 cfg = {
@@ -15,8 +17,8 @@ cfg = {
         256,
         256,
         "M",
-        8,  # Original: 512
-        8,  # Original: 512
+        8,
+        8,
         512,
         "M",
         512,
@@ -35,8 +37,8 @@ cfg = {
         256,
         256,
         "M",
-        16,  # Original: 512
-        16,  # Original: 512
+        16,
+        16,
         512,
         "M",
         512,
@@ -90,7 +92,6 @@ cfg = {
 }
 
 
-@torch.compile
 class VGG_quant(nn.Module):
     def __init__(self, vgg_name, weight_bits=4, act_bits=4):
         super(VGG_quant, self).__init__()
@@ -113,43 +114,43 @@ class VGG_quant(nn.Module):
         for x in cfg:
             if x == "M":
                 layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
-            elif x == "F":  # This is for the 1st layer
+            elif x == "F":
                 layers += [
                     nn.Conv2d(in_channels, 64, kernel_size=3, padding=1, bias=False),
                     nn.BatchNorm2d(64),
                     nn.ReLU(inplace=True),
                 ]
                 in_channels = 64
-            elif x == 8 or x == 16:
-                if self.no_bn:
-                    layers += [
-                        QuantConv2d(
-                            in_channels,
-                            x,
-                            kernel_size=3,
-                            padding=1,
-                            weight_bits=self.weight_bits,
-                            act_bits=self.act_bits,
-                        ),
-                        nn.ReLU(inplace=True),
-                    ]
-                    self.no_bn = False
-                else:
-                    layers += [
-                        QuantConv2d(
-                            in_channels,
-                            x,
-                            kernel_size=3,
-                            padding=1,
-                            weight_bits=self.weight_bits,
-                            act_bits=self.act_bits,
-                        ),
-                        nn.BatchNorm2d(x),
-                        nn.ReLU(inplace=True),
-                    ]
-                    self.no_bn = True
-
-                in_channels = x
+            # elif x == 8 or x == 16:
+            #     if self.no_bn:
+            #         layers += [
+            #             QuantConv2d(
+            #                 in_channels,
+            #                 x,
+            #                 kernel_size=3,
+            #                 padding=1,
+            #                 weight_bits=self.weight_bits,
+            #                 act_bits=self.act_bits,
+            #             ),
+            #             nn.ReLU(inplace=True),
+            #         ]
+            #         self.no_bn = False
+            #     else:
+            #         layers += [
+            #             QuantConv2d(
+            #                 in_channels,
+            #                 x,
+            #                 kernel_size=3,
+            #                 padding=1,
+            #                 weight_bits=self.weight_bits,
+            #                 act_bits=self.act_bits,
+            #             ),
+            #             nn.BatchNorm2d(x),
+            #             nn.ReLU(inplace=True),
+            #         ]
+            #         self.no_bn = True
+            #
+            #     in_channels = x
             else:
                 layers += [
                     QuantConv2d(
@@ -168,7 +169,47 @@ class VGG_quant(nn.Module):
         layers += [nn.AvgPool2d(kernel_size=1, stride=1)]
         return nn.Sequential(*layers)
 
-    def show_params(self):
-        for m in self.modules():
-            if isinstance(m, QuantConv2d):
-                m.show_params()
+    def fuse_model(self):
+        model_copy = copy.deepcopy(self)
+
+        new_features = []
+        i = 0
+        while i < len(model_copy.features):
+            layer = model_copy.features[i]
+            if (
+                i + 1 < len(model_copy.features)
+                and isinstance(layer, (nn.Conv2d, QuantConv2d))
+                and isinstance(model_copy.features[i + 1], nn.BatchNorm2d)
+            ):
+                conv = layer
+                bn = model_copy.features[i + 1]
+
+                with torch.no_grad():
+                    mu = bn.running_mean
+                    sigma = torch.sqrt(bn.running_var + bn.eps)
+                    gamma = bn.weight
+                    beta = bn.bias
+
+                    w = conv.weight
+                    if conv.bias is not None:
+                        b = conv.bias
+                    else:
+                        b = torch.zeros_like(mu)
+
+                    w_new = w * (gamma / sigma).reshape(-1, 1, 1, 1)
+                    b_new = beta + (b - mu) * (gamma / sigma)
+
+                    conv.weight.data.copy_(w_new)
+                    if conv.bias is None:
+                        conv.bias = nn.Parameter(b_new)
+                    else:
+                        conv.bias.data.copy_(b_new)
+
+                new_features.append(conv)
+                i += 2
+            else:
+                new_features.append(layer)
+                i += 1
+
+        model_copy.features = nn.Sequential(*new_features)
+        return model_copy

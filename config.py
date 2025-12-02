@@ -8,7 +8,7 @@ class BaseConfig:
     train_bsz: int = 256
     test_bsz: int = 1000
 
-    epochs: int = 140
+    epochs: int = 160
     check_epoch: int = 5
     save_epoch: int = 5
     num_workers: int = os.cpu_count() - 2
@@ -17,14 +17,17 @@ class BaseConfig:
     final_lr: float = 4e-4
 
     tile_size: int = 8
-    pe_config: str = "ws"  # os
+    pe_config: str = "ws"
+    model_config: str = field(
+        default="bn_fuse", metadata={"choices": ["bn_fuse", "standard", "bnr_fuse"]}
+    )
 
     # update_steps: int = 5
     # cosine_point: float = 0.7
     # flat_point: float = 0.2
 
     weight_bits: int = 4
-    act_bits: int = 2
+    act_bits: int = 4
 
     def __post_init__(self):
         self.setup()
@@ -39,12 +42,19 @@ class BaseConfig:
             self.device = torch.device("cpu")
 
         if self.act_bits == 2:
-            self.model_name = "VGG16_2bit"
             self.channel = 16
         elif self.act_bits == 4:
-            self.model_name = "VGG16_4bit"
             self.channel = 8
 
+        if self.model_config == "standard":
+            self.layer_num = 27
+        elif self.model_config == "bn_fuse":
+            self.layer_num = 19
+
+        self.model_name = "VGG16_" + str(self.act_bits) + "bit"
+        self.model_save_name = (
+            "VGG16_" + self.model_config + "_" + str(self.act_bits) + "bit"
+        )
         self.tile_image_size = self.channel // self.tile_size
 
 

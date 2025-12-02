@@ -16,45 +16,48 @@ class ModelTrainer:
     Extract a certain quantized layer into a specific format
     """
 
-    def __init__(self, args, debug=True):
+    def __init__(self, debug=True):
         model = VGG_quant(
-            vgg_name=args.model_name,
-            weight_bits=args.weight_bits,
-            act_bits=args.act_bits,
-        ).to(args.device)
-        model.load_state_dict(
-            torch.load("./path/" + args.model_name + ".pth", map_location=args.device)
-        )
+            vgg_name=bargs.model_name,
+            weight_bits=bargs.weight_bits,
+            act_bits=bargs.act_bits,
+        ).to(bargs.device)
+
+        model_path = "./path/" + bargs.model_save_name + ".pth"
+        if os.path.exists(model_path):
+            model.load_state_dict(
+                torch.load(
+                    model_path,
+                    map_location=bargs.device,
+                )
+            )
 
         train_loader, test_loader = get_data_loaders()
 
         if debug:
             print(model)
-            print(f"27th layer of model is " + str(model.features[27]))
+            print(
+                f"{bargs.layer_num}th layer of model is "
+                + str(model.features[bargs.layer_num])
+            )
 
         self.model = model
         self.train_loader = train_loader
         self.test_loader = test_loader
 
-        self.args = args
-        self.device = args.device
-        self.tile_size = args.tile_size
-        self.channel = args.channel
-        self.pe_config = args.pe_config
-
-        self.criterion = nn.CrossEntropyLoss().to(self.device)
+        self.criterion = nn.CrossEntropyLoss().to(bargs.device)
         self.optimizer = optim.AdamW(
-            model.parameters(), lr=args.init_lr, weight_decay=1e-5
+            model.parameters(), lr=bargs.init_lr, weight_decay=1e-5
         )
         self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
-            self.optimizer, T_max=args.epochs, eta_min=args.final_lr
+            self.optimizer, T_max=bargs.epochs, eta_min=bargs.final_lr
         )
 
     def run(self):
-        for epoch in range(1, self.args.epochs + 1):
+        for epoch in range(1, bargs.epochs + 1):
             self.model.train()
             for input, target in self.train_loader:
-                input, target = input.to(self.device), target.to(self.device)
+                input, target = input.to(bargs.device), target.to(bargs.device)
 
                 output = self.model(input)
                 loss = self.criterion(output, target)
@@ -63,27 +66,30 @@ class ModelTrainer:
                 loss.backward()
                 self.optimizer.step()
 
-            if epoch % self.args.check_epoch == 0:
+            if epoch % bargs.check_epoch == 0 or epoch % bargs.save_epoch == 0:
+                self.fused_model = self.model.fuse_model()
+
+            if epoch % bargs.check_epoch == 0:
                 self.validate(epoch)
 
-            if epoch % self.args.save_epoch == 0:
+            if epoch % bargs.save_epoch == 0:
                 torch.save(
-                    self.model.state_dict(),
-                    f"./path/" + self.args.model_name + f"_{epoch}.pth",
+                    self.fused_model.state_dict(),
+                    f"./path/" + bargs.model_save_name + f"_{epoch}.pth",
                 )
                 print("Model Successfully Saved!")
 
             self.scheduler.step()
 
     def validate(self, epoch):
-        self.model.eval()
+        self.fused_model.eval()
         correct_count = 0
         total_count = 0
 
         for test_input, test_target in self.test_loader:
-            test_input = test_input.to(self.device)
-            test_target = test_target.to(self.device)
-            test_output = self.model(test_input)
+            test_input = test_input.to(bargs.device)
+            test_target = test_target.to(bargs.device)
+            test_output = self.fused_model(test_input)
 
             preds = test_output.argmax(dim=1)
             correct_count += (preds == test_target).sum().item()
@@ -114,7 +120,7 @@ class ModelTrainer:
         images, _ = next(iter(self.test_loader))
 
         with torch.no_grad():
-            self.model(images.to(self.device))
+            self.model(images.to(bargs.device))
 
         h1.remove()
         h2.remove()
@@ -143,53 +149,81 @@ class ModelTrainer:
 
         # 3. Save Files
 
-        for i in range(self.args.tile_image_size):
-            self._save_file(
-                data=rearrange(
-                    F.pad(act_int.unsqueeze(0), pad=(1, 1, 1, 1), value=0),
-                    "1 (th ts) h w -> th ts (h w)",
-                    th=self.args.tile_image_size,
-                    ts=self.tile_size,
-                )[i],
-                filename="./Files/"
-                + str(act_bit)
-                + "bit/"
-                + self.pe_config
-                + "/activation_tile"
-                + str(i)
-                + ".txt",
-                bits=act_bit,
-            )
-
-        for i in range(self.args.tile_image_size**2):
-            for j in range(9):
+        if bargs.pe_config == "ws":
+            for i in range(bargs.tile_image_size):
                 self._save_file(
                     data=rearrange(
-                        weight_int,
-                        "(th tsh) (tw tsw) h w -> (th tw) tsh tsw (h w)",
-                        tsh=self.tile_size,
-                        tsw=self.tile_size,
-                    )[i, :, :, j],
+                        F.pad(act_int.unsqueeze(0), pad=(1, 1, 1, 1), value=0),
+                        "1 (th ts) h w -> th ts (h w)",
+                        th=bargs.tile_image_size,
+                        ts=bargs.tile_size,
+                    )[i],
                     filename="./Files/"
                     + str(act_bit)
                     + "bit/"
-                    + self.pe_config
+                    + bargs.pe_config
+                    + "/activation_tile"
+                    + str(i)
+                    + ".txt",
+                    bits=act_bit,
+                )
+
+            for i in range(bargs.tile_image_size**2):
+                for j in range(9):
+                    self._save_file(
+                        data=rearrange(
+                            weight_int,
+                            "(th tsh) (tw tsw) h w -> (th tw) tsh tsw (h w)",
+                            tsh=bargs.tile_size,
+                            tsw=bargs.tile_size,
+                        )[i, :, :, j],
+                        filename="./Files/"
+                        + str(act_bit)
+                        + "bit/"
+                        + bargs.pe_config
+                        + "/weight_tile_"
+                        + str(i)
+                        + "_kij_"
+                        + str(j)
+                        + ".txt",
+                        bits=w_bit,
+                    )
+
+        elif bargs.pe_config == "os":
+            act_padded = F.pad(act_int.unsqueeze(0), (1, 1, 1, 1))
+
+            for i in range(bargs.tile_image_size):
+                row_start = i * 2
+                row_end = row_start + 4
+                act_block = act_padded[:, :, row_start:row_end, :]
+
+                self._save_file(
+                    data=rearrange(act_block, "b cin h w -> (b cin h) w"),
+                    filename="./Files/"
+                    + str(act_bit)
+                    + "bit/"
+                    + bargs.pe_config
+                    + "/activation_tile"
+                    + str(i)
+                    + ".txt",
+                    bits=act_bit,
+                )
+
+                self._save_file(
+                    data=rearrange(weight_int, "cout cin k1 k2 -> (cout cin k1) k2"),
+                    filename="./Files/"
+                    + str(act_bit)
+                    + "bit/"
+                    + bargs.pe_config
                     + "/weight_tile_"
                     + str(i)
-                    + "_kij_"
-                    + str(j)
-                    + ".txt",
+                    + "_kij.txt",
                     bits=w_bit,
                 )
 
         self._save_file(
             data=output_int.reshape(output_int.shape[0], -1),
-            filename="./Files/"
-            + str(act_bit)
-            + "bit/"
-            + self.pe_config
-            + "/output_int"
-            + ".txt",
+            filename="./Files/" + str(act_bit) + "bit/output.txt",
             bits=13 if act_bit == 2 else 15,
         )
 
@@ -226,6 +260,8 @@ class ModelTrainer:
 
 
 if __name__ == "__main__":
-    trainer = ModelTrainer(bargs, debug=False)
-    # trainer.run()
-    trainer.extract_layer(w_bit=bargs.weight_bits, act_bit=bargs.act_bits)
+    trainer = ModelTrainer(debug=True)
+    trainer.run()
+    # trainer.extract_layer(
+    #     layer_num=bargs.layer_num, w_bit=bargs.weight_bits, act_bit=bargs.act_bits
+    # )
