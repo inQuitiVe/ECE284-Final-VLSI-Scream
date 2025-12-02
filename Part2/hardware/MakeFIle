@@ -22,7 +22,7 @@ vanilla:
 	@echo "=========================================="
 	@echo "Running VANILLA mode (default)"
 	@echo "=========================================="
-	$(IVERILOG) -o compiled $(FILELIST)
+	$(IVERILOG) -f $(FILELIST) -o compiled
 	$(VVP) compiled
 
 # 2-bit activation mode only
@@ -30,7 +30,7 @@ act_2b:
 	@echo "=========================================="
 	@echo "Running ACT_2B mode (2-bit activation)"
 	@echo "=========================================="
-	$(IVERILOG) -DACT_2BIT -o compiled $(FILELIST)
+	$(IVERILOG) -DACT_2BIT -f $(FILELIST) -o compiled
 	$(VVP) compiled
 
 # OS mode with vanilla settings
@@ -38,7 +38,7 @@ os_vanilla:
 	@echo "=========================================="
 	@echo "Running OS_VANILLA mode (OS + vanilla)"
 	@echo "=========================================="
-	$(IVERILOG) -DIS_OS -o compiled $(FILELIST)
+	$(IVERILOG) -DIS_OS -f $(FILELIST) -o compiled
 	$(VVP) compiled
 
 # OS mode with 2-bit activation
@@ -46,7 +46,7 @@ os_2b:
 	@echo "=========================================="
 	@echo "Running OS_2B mode (OS + 2-bit activation)"
 	@echo "=========================================="
-	$(IVERILOG) -DIS_OS -DACT_2BIT -o compiled $(FILELIST)
+	$(IVERILOG) -DIS_OS -DACT_2BIT -f $(FILELIST) -o compiled
 	$(VVP) compiled
 
 # Run all test modes sequentially
