@@ -66,15 +66,12 @@ class ModelTrainer:
                 loss.backward()
                 self.optimizer.step()
 
-            if epoch % bargs.check_epoch == 0 or epoch % bargs.save_epoch == 0:
-                self.fused_model = self.model.fuse_model()
-
             if epoch % bargs.check_epoch == 0:
                 self.validate(epoch)
 
             if epoch % bargs.save_epoch == 0:
                 torch.save(
-                    self.fused_model.state_dict(),
+                    self.model.state_dict(),
                     f"./path/" + bargs.model_save_name + f"_{epoch}.pth",
                 )
                 print("Model Successfully Saved!")
@@ -82,14 +79,14 @@ class ModelTrainer:
             self.scheduler.step()
 
     def validate(self, epoch):
-        self.fused_model.eval()
+        self.model.eval()
         correct_count = 0
         total_count = 0
 
         for test_input, test_target in self.test_loader:
             test_input = test_input.to(bargs.device)
             test_target = test_target.to(bargs.device)
-            test_output = self.fused_model(test_input)
+            test_output = self.model(test_input)
 
             preds = test_output.argmax(dim=1)
             correct_count += (preds == test_target).sum().item()
@@ -224,7 +221,7 @@ class ModelTrainer:
         self._save_file(
             data=output_int.reshape(output_int.shape[0], -1),
             filename="./Files/" + str(act_bit) + "bit/output.txt",
-            bits=13 if act_bit == 2 else 15,
+            bits=16,
         )
 
         # 4. Error Calculation
@@ -261,7 +258,7 @@ class ModelTrainer:
 
 if __name__ == "__main__":
     trainer = ModelTrainer(debug=True)
-    trainer.run()
-    # trainer.extract_layer(
-    #     layer_num=bargs.layer_num, w_bit=bargs.weight_bits, act_bit=bargs.act_bits
-    # )
+    # trainer.run()
+    trainer.extract_layer(
+        layer_num=bargs.layer_num, w_bit=bargs.weight_bits, act_bit=bargs.act_bits
+    )

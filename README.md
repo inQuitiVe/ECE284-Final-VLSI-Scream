@@ -22,14 +22,8 @@
 
 # Alphas
 
-- Fusion is ongoing...
-
-- Model is already trained
-
 1. For 4-bit BN-Fused Model
 
 - It achieves an accuracy of **92.13%**
 
 2. For 2-bit BN-Fused Model
-
-- It achieves an accuracy of **90.43%**

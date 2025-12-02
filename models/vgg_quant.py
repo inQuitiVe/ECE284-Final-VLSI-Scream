@@ -1,6 +1,5 @@
 import torch
 import torch.nn as nn
-import copy
 from .quant_layer import *
 
 cfg = {
@@ -121,36 +120,36 @@ class VGG_quant(nn.Module):
                     nn.ReLU(inplace=True),
                 ]
                 in_channels = 64
-            # elif x == 8 or x == 16:
-            #     if self.no_bn:
-            #         layers += [
-            #             QuantConv2d(
-            #                 in_channels,
-            #                 x,
-            #                 kernel_size=3,
-            #                 padding=1,
-            #                 weight_bits=self.weight_bits,
-            #                 act_bits=self.act_bits,
-            #             ),
-            #             nn.ReLU(inplace=True),
-            #         ]
-            #         self.no_bn = False
-            #     else:
-            #         layers += [
-            #             QuantConv2d(
-            #                 in_channels,
-            #                 x,
-            #                 kernel_size=3,
-            #                 padding=1,
-            #                 weight_bits=self.weight_bits,
-            #                 act_bits=self.act_bits,
-            #             ),
-            #             nn.BatchNorm2d(x),
-            #             nn.ReLU(inplace=True),
-            #         ]
-            #         self.no_bn = True
-            #
-            #     in_channels = x
+            elif x == 8 or x == 16:
+                if self.no_bn:
+                    layers += [
+                        QuantConv2d(
+                            in_channels,
+                            x,
+                            kernel_size=3,
+                            padding=1,
+                            weight_bits=self.weight_bits,
+                            act_bits=self.act_bits,
+                        ),
+                        nn.ReLU(inplace=True),
+                    ]
+                    self.no_bn = False
+                else:
+                    layers += [
+                        QuantConv2d(
+                            in_channels,
+                            x,
+                            kernel_size=3,
+                            padding=1,
+                            weight_bits=self.weight_bits,
+                            act_bits=self.act_bits,
+                        ),
+                        nn.BatchNorm2d(x),
+                        nn.ReLU(inplace=True),
+                    ]
+                    self.no_bn = True
+
+                in_channels = x
             else:
                 layers += [
                     QuantConv2d(
@@ -170,19 +169,18 @@ class VGG_quant(nn.Module):
         return nn.Sequential(*layers)
 
     def fuse_model(self):
-        model_copy = copy.deepcopy(self)
-
         new_features = []
         i = 0
-        while i < len(model_copy.features):
-            layer = model_copy.features[i]
+        while i < len(self.features):
+            layer = self.features[i]
             if (
-                i + 1 < len(model_copy.features)
+                i + 1 < len(self.features)
                 and isinstance(layer, (nn.Conv2d, QuantConv2d))
-                and isinstance(model_copy.features[i + 1], nn.BatchNorm2d)
+                and isinstance(self.features[i + 1], nn.BatchNorm2d)
             ):
+
                 conv = layer
-                bn = model_copy.features[i + 1]
+                bn = self.features[i + 1]
 
                 with torch.no_grad():
                     mu = bn.running_mean
@@ -211,5 +209,4 @@ class VGG_quant(nn.Module):
                 new_features.append(layer)
                 i += 1
 
-        model_copy.features = nn.Sequential(*new_features)
-        return model_copy
+        return nn.Sequential(*new_features)

@@ -13,13 +13,13 @@ class BaseConfig:
     save_epoch: int = 5
     num_workers: int = os.cpu_count() - 2
 
-    init_lr: float = 5e-3
+    init_lr: float = 1.2e-3
     final_lr: float = 4e-4
 
     tile_size: int = 8
     pe_config: str = "ws"
     model_config: str = field(
-        default="bn_fuse", metadata={"choices": ["bn_fuse", "standard", "bnr_fuse"]}
+        default="standard", metadata={"choices": ["bn_fuse", "standard", "bnr_fuse"]}
     )
 
     # update_steps: int = 5
