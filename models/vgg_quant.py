@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 from .quant_layer import *
+import copy
 
 cfg = {
     "VGG11": [64, "M", 128, "M", 256, 256, "M", 512, 512, "M", 512, 512, "M"],
@@ -169,18 +170,19 @@ class VGG_quant(nn.Module):
         return nn.Sequential(*layers)
 
     def fuse_model(self):
+        model_copy = copy.deepcopy(self)
+
         new_features = []
         i = 0
-        while i < len(self.features):
-            layer = self.features[i]
+        while i < len(model_copy.features):
+            layer = model_copy.features[i]
             if (
-                i + 1 < len(self.features)
+                i + 1 < len(model_copy.features)
                 and isinstance(layer, (nn.Conv2d, QuantConv2d))
-                and isinstance(self.features[i + 1], nn.BatchNorm2d)
+                and isinstance(model_copy.features[i + 1], nn.BatchNorm2d)
             ):
-
                 conv = layer
-                bn = self.features[i + 1]
+                bn = model_copy.features[i + 1]
 
                 with torch.no_grad():
                     mu = bn.running_mean
@@ -194,8 +196,11 @@ class VGG_quant(nn.Module):
                     else:
                         b = torch.zeros_like(mu)
 
-                    w_new = w * (gamma / sigma).reshape(-1, 1, 1, 1)
-                    b_new = beta + (b - mu) * (gamma / sigma)
+                    # Calculate scaling factor for weights
+                    scale_factor = gamma / sigma
+
+                    w_new = w * scale_factor.reshape(-1, 1, 1, 1)
+                    b_new = beta + (b - mu) * scale_factor
 
                     conv.weight.data.copy_(w_new)
                     if conv.bias is None:
@@ -203,10 +208,22 @@ class VGG_quant(nn.Module):
                     else:
                         conv.bias.data.copy_(b_new)
 
+                    if hasattr(conv, "weight_quant") and hasattr(
+                        conv.weight_quant, "wgt_alpha"
+                    ):
+                        sf_abs = scale_factor.abs()
+                        if conv.weight_quant.wgt_alpha.numel() == 1:
+                            conv.weight_quant.wgt_alpha.data *= sf_abs.mean()
+                        else:
+                            conv.weight_quant.wgt_alpha.data *= sf_abs.view_as(
+                                conv.weight_quant.wgt_alpha
+                            )
+
                 new_features.append(conv)
                 i += 2
             else:
                 new_features.append(layer)
                 i += 1
 
-        return nn.Sequential(*new_features)
+        model_copy.features = nn.Sequential(*new_features)
+        return model_copy

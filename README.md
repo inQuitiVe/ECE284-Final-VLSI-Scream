@@ -14,7 +14,7 @@
 
 - It achieves **90.67%** accuracy
 
-- Weight shape is $C_{in}, k^2, TS$, where $TS = 8$ is **tile size**, $k=3$ is **kernel size**
+- Weight shape is $(C_{in}, k^2, TS)$, where $TS = 8$ is **tile size**, $k=3$ is **kernel size**
 
 3. All the `.txt` files are extracted from the **27th** layer of the Model.
 

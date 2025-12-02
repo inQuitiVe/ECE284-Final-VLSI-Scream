@@ -4,6 +4,7 @@ import torch.optim as optim
 import torch.nn.functional as F
 import os
 
+
 from models import *
 from config import bargs
 from data import *
@@ -12,8 +13,11 @@ from einops import rearrange
 
 class ModelTrainer:
     """r
+
     Train and validate model;
+
     Extract a certain quantized layer into a specific format
+
     """
 
     def __init__(self, debug=True):
@@ -24,7 +28,9 @@ class ModelTrainer:
         ).to(bargs.device)
 
         model_path = "./path/" + bargs.model_save_name + ".pth"
+
         if os.path.exists(model_path):
+
             model.load_state_dict(
                 torch.load(
                     model_path,
@@ -35,20 +41,26 @@ class ModelTrainer:
         train_loader, test_loader = get_data_loaders()
 
         if debug:
+
             print(model)
+
             print(
                 f"{bargs.layer_num}th layer of model is "
                 + str(model.features[bargs.layer_num])
             )
 
         self.model = model
+
         self.train_loader = train_loader
+
         self.test_loader = test_loader
 
         self.criterion = nn.CrossEntropyLoss().to(bargs.device)
+
         self.optimizer = optim.AdamW(
             model.parameters(), lr=bargs.init_lr, weight_decay=1e-5
         )
+
         self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer, T_max=bargs.epochs, eta_min=bargs.final_lr
         )
@@ -56,38 +68,40 @@ class ModelTrainer:
     def run(self):
         for epoch in range(1, bargs.epochs + 1):
             self.model.train()
+
             for input, target in self.train_loader:
                 input, target = input.to(bargs.device), target.to(bargs.device)
-
                 output = self.model(input)
                 loss = self.criterion(output, target)
-
                 self.optimizer.zero_grad()
                 loss.backward()
                 self.optimizer.step()
+
+            if epoch % bargs.check_epoch == 0 or epoch % bargs.save_epoch == 0:
+                self.fused_model = self.model.fuse_model()
 
             if epoch % bargs.check_epoch == 0:
                 self.validate(epoch)
 
             if epoch % bargs.save_epoch == 0:
                 torch.save(
-                    self.model.state_dict(),
+                    self.fused_model.state_dict(),
                     f"./path/" + bargs.model_save_name + f"_{epoch}.pth",
                 )
+
                 print("Model Successfully Saved!")
 
             self.scheduler.step()
 
     def validate(self, epoch):
-        self.model.eval()
+        self.fused_model.eval()
         correct_count = 0
         total_count = 0
 
         for test_input, test_target in self.test_loader:
             test_input = test_input.to(bargs.device)
             test_target = test_target.to(bargs.device)
-            test_output = self.model(test_input)
-
+            test_output = self.fused_model(test_input)
             preds = test_output.argmax(dim=1)
             correct_count += (preds == test_target).sum().item()
             total_count += test_target.size(0)
@@ -109,16 +123,13 @@ class ModelTrainer:
 
         target_layer = self.model.features[layer_num]
         next_layer = self.model.features[layer_num + 2]
-
         h1 = target_layer.register_forward_pre_hook(hook_curr_in)
         h2 = next_layer.register_forward_pre_hook(hook_output)
-
         self.model.eval()
-        images, _ = next(iter(self.test_loader))
 
+        images, _ = next(iter(self.test_loader))
         with torch.no_grad():
             self.model(images.to(bargs.device))
-
         h1.remove()
         h2.remove()
 
@@ -126,7 +137,6 @@ class ModelTrainer:
         w_alpha = target_layer.weight_quant.wgt_alpha
         w_scale = w_alpha / (2 ** (w_bit - 1) - 1)
         weight_int = torch.round(target_layer.weight_q / w_scale)
-
         input_float = captured["in"][0]
 
         act_alpha = target_layer.act_alpha
@@ -170,7 +180,7 @@ class ModelTrainer:
                     self._save_file(
                         data=rearrange(
                             weight_int,
-                            "(th tsh) (tw tsw) h w -> (th tw) tsh tsw (h w)",
+                            "(th tsh) (tw tsw) h w -> (tw th) tsh tsw (h w)",
                             tsh=bargs.tile_size,
                             tsw=bargs.tile_size,
                         )[i, :, :, j],
@@ -188,7 +198,6 @@ class ModelTrainer:
 
         elif bargs.pe_config == "os":
             act_padded = F.pad(act_int.unsqueeze(0), (1, 1, 1, 1))
-
             for i in range(bargs.tile_image_size):
                 row_start = i * 2
                 row_end = row_start + 4
@@ -221,7 +230,7 @@ class ModelTrainer:
         self._save_file(
             data=output_int.reshape(output_int.shape[0], -1),
             filename="./Files/" + str(act_bit) + "bit/output.txt",
-            bits=16,
+            bits=13 if act_bit == 2 else 15,
         )
 
         # 4. Error Calculation
@@ -233,23 +242,19 @@ class ModelTrainer:
 
     def _save_file(self, data, filename, bits):
         os.makedirs(os.path.dirname(filename), exist_ok=True)
-
         file = open(filename, "w")
         file.write("#time0row7[msb-lsb],time0row6[msb-lst],....,time0row0[msb-lst]#\n")
         file.write("#time1row7[msb-lsb],time1row6[msb-lst],....,time1row0[msb-lst]#\n")
         file.write("#................#\n")
-
         fmt_str = f"0{bits}b"
 
         for i in range(data.size(1)):
             for j in range(data.size(0)):
                 data_value = round(data[7 - j, i].item())
-
                 if data_value < 0:
                     data_bin = format(data_value & (2**bits - 1), fmt_str)
                 else:
                     data_bin = format(data_value, fmt_str)
-
                 for k in range(bits):
                     file.write(data_bin[k])
             file.write("\n")

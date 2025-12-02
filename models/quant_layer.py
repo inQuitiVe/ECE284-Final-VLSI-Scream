@@ -5,11 +5,9 @@ from torch.nn.parameter import Parameter
 
 
 def weight_quantization(b):
-
     def uniform_quant(x, b):
         xdiv = x.mul((2**b - 1))
         xhard = xdiv.round().div(2**b - 1)
-        # print('uniform quant bit: ', b)
         return xhard
 
     class _pq(torch.autograd.Function):
@@ -59,7 +57,6 @@ class weight_quantize_fn(nn.Module):
 
 
 def act_quantization(b):
-
     def uniform_quant(x, b=4):
         xdiv = x.mul(2**b - 1)
         xhard = xdiv.round().div(2**b - 1)
@@ -112,7 +109,6 @@ class QuantConv2d(nn.Conv2d):
             groups,
             bias,
         )
-        self.layer_type = "QuantConv2d"
         self.weight_quant = weight_quantize_fn(w_bit=weight_bits)
         self.act_alq = act_quantization(act_bits)
         self.act_alpha = torch.nn.Parameter(torch.tensor(8.0))
