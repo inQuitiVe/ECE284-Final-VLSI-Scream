@@ -25,18 +25,19 @@ module l0 (clk, in, out, rd, wr, o_full, reset, o_ready);
   assign o_ready =  ~o_full;
 
 
-  for (i=0; i<row ; i=i+1) begin : row_num
+   for (i=0; i<row ; i=i+1) begin : row_num
       fifo_depth64 #(.bw(bw)) fifo_instance (
-	 .rd_clk(clk),
-	 .wr_clk(clk),
-	 .rd(rd_en[i]),
-	 .wr(wr),
-         .o_empty(empty[i]),
-         .o_full(full[i]),
-	  .in( in[(i+1)*bw-1 : i*bw]),
-	 .out(out[(i+1)*bw-1 : i*bw]),
-         .reset(reset));
-  end
+         .rd_clk     (clk                 ),
+         .wr_clk     (clk                 ),
+         .reset      (reset               ),
+         .rd         (rd_en[i]            ),
+         .wr         (wr                  ),
+         .o_empty    (empty[i]            ),
+         .o_full     (full[i]             ),
+         .in         (in[(i+1)*bw-1:i*bw] ),
+         .out        (out[(i+1)*bw-1:i*bw])
+      );
+   end
 
 
   always @ (posedge clk) begin

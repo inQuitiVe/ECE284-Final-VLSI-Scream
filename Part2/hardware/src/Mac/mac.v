@@ -12,8 +12,8 @@ module mac (out, a, b0, b1, c, act_2b_mode);
     wire          [2:0]         a_lo_pad, a_hi_pad;
     wire signed   [psum_bw-1:0] psum;
     wire signed   [6:0]         product_lo, product_hi;
-    wire signed   [15:0]        product_lo_pad, product_hi_pad;
-    wire signed   [15:0]        product;
+    wire signed   [7:0]         product_lo_pad, product_hi_pad;
+    wire signed   [7:0]         product;
 
     assign a_hi_pad   = {1'b0, a[3:2]}; // force to be unsigned number
     assign a_lo_pad   = {1'b0, a[1:0]}; // force to be unsigned number
@@ -24,7 +24,7 @@ module mac (out, a, b0, b1, c, act_2b_mode);
     assign product_lo_pad = {{2{product_lo[6]}}, product_lo[5:0]};
     assign product_hi_pad = {product_hi[5:0]   ,            2'b0};
 
-    assign product    = act_2b_mode ? $signed(product_lo_pad) + $signed(product_hi_pad) : $signed(product_lo) + $signed(product_hi);
+    assign product    = act_2b_mode ?  $signed(product_lo) + $signed(product_hi) : $signed(product_lo_pad) + $signed(product_hi_pad);
 
     assign psum       = $signed(product) + $signed(c);
     assign out        = psum;

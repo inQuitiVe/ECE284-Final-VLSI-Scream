@@ -36,7 +36,7 @@ module mac_row (clk, out_s, in_w, in_n, valid, inst_w, reset, is_os, act_2b_mode
         .act_2b_mode(act_2b_mode),
         .out_s(out_s[psum_bw*i-1 : psum_bw*(i-1)]));
 
-      assign valid[i-1] = inst_bus[2*(i+1)-1];
+      assign valid[i-1] = inst_bus[inst_bw*(i+1)-1-1];
     end
   endgenerate
   
