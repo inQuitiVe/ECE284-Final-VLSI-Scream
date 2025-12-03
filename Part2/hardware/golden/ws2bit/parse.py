@@ -69,8 +69,8 @@ def convert_filename(from_yufan_name):
         # 3 -> (1, 1)
         tile_to_itile_otile = {
             0: (0, 0),
-            1: (1, 0),
-            2: (0, 1),
+            1: (0, 1),
+            2: (1, 0),
             3: (1, 1)
         }
         

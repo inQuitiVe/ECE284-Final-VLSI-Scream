@@ -108,7 +108,15 @@ module SFU #(
     
     assign r_A_pmem = readout_mode? readout_addr : o_addr;
     assign ren_pmem = readout_mode? readout_mode : acc;
-    assign readout = Q_pmem;
+    // ReLU: max(0, x) - if negative (sign bit = 1), output 0, else output original value
+    assign readout[15:0]    = Q_pmem[15]    ? 16'b0 : Q_pmem[15:0];
+    assign readout[31:16]   = Q_pmem[31]    ? 16'b0 : Q_pmem[31:16];
+    assign readout[47:32]   = Q_pmem[47]    ? 16'b0 : Q_pmem[47:32];
+    assign readout[63:48]   = Q_pmem[63]    ? 16'b0 : Q_pmem[63:48];
+    assign readout[79:64]   = Q_pmem[79]    ? 16'b0 : Q_pmem[79:64];
+    assign readout[95:80]   = Q_pmem[95]    ? 16'b0 : Q_pmem[95:80];
+    assign readout[111:96]  = Q_pmem[111]   ? 16'b0 : Q_pmem[111:96];
+    assign readout[127:112] = Q_pmem[127]   ? 16'b0 : Q_pmem[127:112];
     
 
     //nij starts increment as o_valid = 1

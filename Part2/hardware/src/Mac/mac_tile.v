@@ -83,8 +83,8 @@ module mac_tile (
         b1_q_nxt = is_preload ? in_w : b1_q;
       end
       else begin
-        b0_q_nxt = (inst_w[0] && load_ready_q == 2'b11) ? in_w : b0_q;
-        b1_q_nxt = (inst_w[0] && load_ready_q == 2'b01) ? in_w : b1_q;
+        b0_q_nxt = (inst_w[0] && load_ready_q == 2'b01) ? in_w : b0_q;
+        b1_q_nxt = (inst_w[0] && load_ready_q == 2'b10) ? in_w : b1_q;
       end
       c_q_nxt = in_n;
     end
@@ -95,7 +95,7 @@ module mac_tile (
   always @ (posedge clk) begin
     if (reset) begin
       inst_q       <= 0;
-      load_ready_q <= (~is_os & act_2b_mode) ? 2'b11 : 2'b01;
+      load_ready_q <= (~is_os & act_2b_mode) ? 2'b10 : 2'b01;
       a_q          <= 0;
       b0_q         <= 0;
       b1_q         <= 0;
