@@ -1,24 +1,48 @@
 # Done
 
-> Files for both accuracy (4,4 and 2,4) are stored in "./Files/" Folder
+> Files for **4 bits** and **2 bits** accuracies are stored in "./Files/" Folder
 
-1. For 4bit Model 
+## 4 bits Model 
 
 - It achieves **91.53%** accuracy
 
-- Outputs are 15 bits
-
-2. 2bit Model achieved **90.67%** accuracy
-
-- Outputs are 13 bits
+## 2 bit Model
 
 - It achieves **90.67%** accuracy
 
-- Weight shape is $(C_{in}, k^2, TS)$, where $TS = 8$ is **tile size**, $k=3$ is **kernel size**
+## Shapes of txt Files
 
-3. All the `.txt` files are extracted from the **27th** layer of the Model.
+1. Output Stationary:
+
+| Parameter | Output Stationary |
+|---|---|
+| Weight Number | $(2, k^2, \dfrac{C_{in}}{t})$ |
+| Weight Shape | $(t, \dfrac{C_{out}}{2} )$ |
+| Input Number | $(2, \dfrac{C_{in}}{t})$ |
+| Input Shapes | $(t,4,w+2p)$ |
+
+2. Weight Stationary:
+
+| Parameter | Weight Stationary |
+|---|---|
+| Input Number | $\dfrac{C_{in}}{t}$ |
+| Input Shape | $(t, h+2p, w+2p)$ |
+| Weight Number | $(k^2, \dfrac{C_{in}}{t}, \dfrac{C_{out}}{t})$ |
+| Weight Shape | $(t, t)$ |
+
+- $h=w=4, t = \text{tile size} = 8$
+
+- Outputs are $(t, \dfrac{C_{out}}{t} hw  )$
+
+## Others
+
+- All the `.txt` files are extracted from the **27th** layer of the Model.
 
 - The input data is the **1st image** of the **test data** in CIFAR10
+
+- Outputs are 16 bits
+
+- `path/` files can be downloaded from `https://drive.google.com/drive/folders/1Msoyvbh17tpp8IkoSukHmSEJGndVMcX8?usp=drive_link`
 
 # Alphas
 
@@ -26,4 +50,6 @@
 
 - It achieves an accuracy of **92.13%**
 
-2. For 2-bit BN-Fused Model
+2. For 2-bit BN-Fused Model (**TODO**)
+
+- It achieves an accuracy of ...

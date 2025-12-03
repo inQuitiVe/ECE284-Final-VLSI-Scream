@@ -17,7 +17,7 @@ class BaseConfig:
     final_lr: float = 4e-4
 
     tile_size: int = 8
-    pe_config: str = "ws"
+    pe_config: str = field(default="os", metadata={"choices": ["os", "ws"]})
     model_config: str = field(
         default="standard", metadata={"choices": ["bn_fuse", "standard", "bnr_fuse"]}
     )

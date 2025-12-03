@@ -198,40 +198,60 @@ class ModelTrainer:
 
         elif bargs.pe_config == "os":
             act_padded = F.pad(act_int.unsqueeze(0), (1, 1, 1, 1))
-            for i in range(bargs.tile_image_size):
-                row_start = i * 2
-                row_end = row_start + 4
-                act_block = act_padded[:, :, row_start:row_end, :]
+            for i in range(bargs.channel // bargs.tile_size):
+                for j in range(2):
+                    self._save_file(
+                        data=act_padded[
+                            0,
+                            bargs.tile_size * i : bargs.tile_size * i + bargs.tile_size,
+                            2 * j : 2 * j + 4,
+                            :,
+                        ].reshape(bargs.tile_size, -1),
+                        filename=(
+                            "./Files/"
+                            + str(act_bit)
+                            + "bit/"
+                            + bargs.pe_config
+                            + "/channel_group_"
+                            + str(i)
+                            + ("_upper" if j == 0 else "_lower")
+                            + ".txt"
+                        ),
+                        bits=act_bit,
+                    )
 
-                self._save_file(
-                    data=rearrange(act_block, "b cin h w -> (b cin h) w"),
-                    filename="./Files/"
-                    + str(act_bit)
-                    + "bit/"
-                    + bargs.pe_config
-                    + "/activation_tile"
-                    + str(i)
-                    + ".txt",
-                    bits=act_bit,
+                reshaped_weight = rearrange(
+                    weight_int,
+                    "(tn par_cout) (ts par_cin) k1 k2 -> tn par_cin (k1 k2) ts par_cout",
+                    tn=bargs.tile_image_size,
+                    ts=bargs.tile_size,
                 )
+                for tn in range(bargs.tile_image_size):
+                    for kij in range(9):
+                        self._save_file(
+                            data=reshaped_weight[tn, i, kij, :, :].reshape(8, -1),
+                            filename="./Files/"
+                            + str(act_bit)
+                            + "bit/"
+                            + bargs.pe_config
+                            + "/weight_channel_group_"
+                            + str(i)
+                            + "_kij_"
+                            + str(kij)
+                            + "_tile_"
+                            + str(tn)
+                            + ".txt",
+                            bits=w_bit,
+                        )
 
-                self._save_file(
-                    data=rearrange(weight_int, "cout cin k1 k2 -> (cout cin k1) k2"),
-                    filename="./Files/"
-                    + str(act_bit)
-                    + "bit/"
-                    + bargs.pe_config
-                    + "/weight_tile_"
-                    + str(i)
-                    + "_kij.txt",
-                    bits=w_bit,
-                )
-
-        self._save_file(
-            data=output_int.reshape(output_int.shape[0], -1),
-            filename="./Files/" + str(act_bit) + "bit/output.txt",
-            bits=13 if act_bit == 2 else 15,
-        )
+        for i in range(bargs.tile_image_size):
+            self._save_file(
+                data=rearrange(
+                    output_int, "(tn ts) h w -> tn ts (h w)", ts=bargs.tile_size
+                )[i],
+                filename="./Files/" + str(act_bit) + "bit/output_" + str(i) + ".txt",
+                bits=16,
+            )
 
         # 4. Error Calculation
         output_recovered = output_int * w_scale * a_scale
@@ -242,6 +262,7 @@ class ModelTrainer:
 
     def _save_file(self, data, filename, bits):
         os.makedirs(os.path.dirname(filename), exist_ok=True)
+
         file = open(filename, "w")
         file.write("#time0row7[msb-lsb],time0row6[msb-lst],....,time0row0[msb-lst]#\n")
         file.write("#time1row7[msb-lsb],time1row6[msb-lst],....,time1row0[msb-lst]#\n")
