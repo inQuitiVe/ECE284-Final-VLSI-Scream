@@ -16,11 +16,6 @@ module core #(
     input   [10:0]  A_xmem,
     input   [bw*col-1:0] D_xmem, //32b
 
-    // // PSUM mem ctrls from TB
-    // input           CEN_pmem,
-    // input           WEN_pmem,
-    // input   [10:0]  A_pmem,
-
     // from/to TB
     input [3:0]     kij,  //for SFU
     input           readout_start, //trigger for output stage

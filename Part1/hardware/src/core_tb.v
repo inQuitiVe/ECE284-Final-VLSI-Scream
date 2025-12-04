@@ -206,7 +206,11 @@ initial begin
     /////////////////////////////////////
   end  // end of kij loop
 
-
+  $display("## Conv End. Waiting for ReLU\n");
+  for (i=0; i<20 ; i=i+1) begin
+    #0.5 clk = 1'b0;
+    #0.5 clk = 1'b1;  
+  end
 
 
   $display("############ Output Verification Start #############"); 

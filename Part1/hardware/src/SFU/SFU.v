@@ -22,114 +22,178 @@ module SFU #(
 );
 
     // state
-    reg [5:0]             nij_cnt;        // 0~35,
-    reg readout_mode;
-    reg [3:0]     readout_addr;        // 0~15
+    localparam S_Init    = 3'd0;
+    localparam S_Acc     = 3'd1;
+    localparam S_ReLU    = 3'd2;
+    localparam S_Idle    = 3'd3;
+    localparam S_Readout = 3'd4;
+
+    // state
+    reg flush_cycle, flush_cycle_nxt;
+    reg [2:0]  state, state_nxt;
+
+
+    reg [5:0]  nij, nij_nxt;       // 0~35,
+    reg [3:0]  o_nij, o_nij_nxt;    // 0~15
 
 
 
-    // delayed signals
-    reg                   ofifo_valid_D1;
-    reg [psum_bw*col-1:0] ofifo_data_D1;
-    reg                   acc_D1;    
-    reg [3:0]             o_addr_D1; 
-    
-
-    // calculation o_addr from nij_cnt, kij
-    wire acc;             //  Whether this psum is in output's region
-    wire[3:0] o_addr;     //  0~15
+    // combinational logic
+    wire        cal_acc;  //Whether this psum is in output's region
+    wire [3:0]  cal_o_nij;
+    // calculation o_addr from nij, kij         
     onij_calculator onij_calculator_instance(
-        .nij(nij_cnt), .kij(kij), .acc(acc), .o_addr(o_addr)
+        .nij(nij), .kij(kij), .acc(cal_acc), .o_addr(cal_o_nij)
     );
 
 
+    // delayed signals
+    reg [psum_bw*col-1:0] ofifo_data_D1, ofifo_data_D2;
+    reg [3:0]             r_A_pmem_D1;
+    reg [3:0]             ren_pmem_D1;
 
-
-
-    // Output logic
-    assign w_A_pmem = o_addr_D1;
-    assign wen_pmem = acc_D1;
     
-    // The following expression is wrong !!!!
-    // assign D_pmem = (kij==4'd0)? ofifo_data_D1 : (Q_pmem + ofifo_data_D1);
-    assign D_pmem[15:0]    = (kij==4'd0)? ofifo_data_D1[15:0]    : (Q_pmem[15:0]    + ofifo_data_D1[15:0]   );   
-    assign D_pmem[31:16]   = (kij==4'd0)? ofifo_data_D1[31:16]   : (Q_pmem[31:16]   + ofifo_data_D1[31:16]  );   
-    assign D_pmem[47:32]   = (kij==4'd0)? ofifo_data_D1[47:32]   : (Q_pmem[47:32]   + ofifo_data_D1[47:32]  );   
-    assign D_pmem[63:48]   = (kij==4'd0)? ofifo_data_D1[63:48]   : (Q_pmem[63:48]   + ofifo_data_D1[63:48]  );   
-    assign D_pmem[79:64]   = (kij==4'd0)? ofifo_data_D1[79:64]   : (Q_pmem[79:64]   + ofifo_data_D1[79:64]  );   
-    assign D_pmem[95:80]   = (kij==4'd0)? ofifo_data_D1[95:80]   : (Q_pmem[95:80]   + ofifo_data_D1[95:80]  );   
-    assign D_pmem[111:96]  = (kij==4'd0)? ofifo_data_D1[111:96]  : (Q_pmem[111:96]  + ofifo_data_D1[111:96] );
-    assign D_pmem[127:112] = (kij==4'd0)? ofifo_data_D1[127:112] : (Q_pmem[127:112] + ofifo_data_D1[127:112]);
-    
-    assign r_A_pmem = readout_mode? readout_addr : o_addr;
-    assign ren_pmem = readout_mode? readout_mode : acc;
     assign readout = Q_pmem;
+    assign r_A_pmem = (state==S_Acc && cal_acc) ? cal_o_nij :
+                      (state==S_ReLU || state==S_Readout) ? o_nij : 4'd0;
+    assign ren_pmem = (state==S_Acc && cal_acc || state==S_ReLU || state==S_Readout) && (~flush_cycle);
+    assign w_A_pmem = (state==S_Acc || state==S_ReLU) ? r_A_pmem_D1 : 4'd0;
+    assign wen_pmem = (state==S_Acc || state==S_ReLU) ? ren_pmem_D1 : 1'b0;
     
 
-    //nij starts increment as o_valid = 1
-    //r_A_pmem starts increment as o_valid = 1
-    //w_A_pmem is has 1 cycle delay relative to r_A_pmem
-    always @(posedge clk ) begin   
-        if(reset) begin
-            nij_cnt      <= 6'b00_0000;
+    wire [psum_bw-1 : 0]  ReLU_out [col-1 : 0];
+    genvar i;
+    generate
+        for(i=0; i<col; i=i+1)begin: col_num
+            ReLU#(.psum_bw(psum_bw)) ReLU_instance(
+                .in(Q_pmem[(i+1)*psum_bw-1 : i*psum_bw]),
+                .out(ReLU_out[i])
+            );
         end
-        else begin
-            if(ofifo_valid)begin    // in case ofifo_valid was inserted bubble
-                if(nij_cnt == 6'd36)begin
-                    nij_cnt <= 6'd36;  // stuck nij here so that wen_pmem doesn't be pulled high
+    endgenerate
+
+    generate
+        for(i=0; i<col; i=i+1)begin
+            assign D_pmem[(i+1)*psum_bw-1 : i*psum_bw] = (state==S_ReLU) ? ReLU_out[i] :
+                                                         (state==S_Acc && kij==4'd0)  ?  ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw] : (Q_pmem[(i+1)*psum_bw-1 : i*psum_bw]+ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw]);
+        end
+    endgenerate
+
+    always @(*) begin
+        case (state)
+            S_Init: begin
+                state_nxt = ofifo_valid ? S_Acc : S_Init;
+                nij_nxt   = 6'd0;
+                o_nij_nxt = 4'd0;
+                flush_cycle_nxt = 1'b0;
+            end
+            S_Acc: begin
+                if(flush_cycle)begin
+                    flush_cycle_nxt = 1'b0;
+                    nij_nxt = 6'd0;
+                    state_nxt = (kij==4'd8)? S_ReLU : S_Idle;
                 end
                 else begin
-                    nij_cnt <= nij_cnt + 1'b1;
+                    if(nij == 6'd35)begin
+                        nij_nxt = 6'd0;
+                        flush_cycle_nxt = 1'b1;
+                        state_nxt = S_Acc;
+                    end
+                    else begin
+                        nij_nxt = nij + 1'b1;
+                        flush_cycle_nxt = 1'b0;
+                        state_nxt = S_Acc;
+                    end
+                end    
+                o_nij_nxt = 4'd0;             
+            end
+            S_ReLU: begin
+                if(flush_cycle)begin
+                    flush_cycle_nxt = 1'b0;
+                    o_nij_nxt = 4'd0;
+                    state_nxt = S_Idle;
                 end
+                else begin
+                    if(o_nij == 4'd15)begin
+                        o_nij_nxt = 4'd0;
+                        flush_cycle_nxt = 1'b1;
+                        state_nxt = S_ReLU;
+                    end
+                    else begin
+                        o_nij_nxt = o_nij + 1'b1;
+                        flush_cycle_nxt = 1'b0;
+                        state_nxt = S_ReLU;
+                    end
+                end           
+                nij_nxt = 6'd0;      
             end
-            else begin
-                nij_cnt <= nij_cnt;
+            S_Idle:begin
+                state_nxt = readout_start? S_Readout : S_Idle;
+                nij_nxt   = 6'd0;
+                o_nij_nxt = 4'd0;
+                flush_cycle_nxt = 1'b0;
             end
-        end
-    end 
-
-    always @(posedge clk ) begin
-        if(reset) begin
-            readout_mode   <= 1'b0;
-            readout_addr <= 4'd0;
-        end
-        else begin
-            if (!readout_mode && readout_start) begin //start readout
-                readout_mode   <= 1'b1;
-                readout_addr <= 1'b0;
+            S_Readout:begin
+                if(flush_cycle)begin
+                    flush_cycle_nxt = 1'b0;
+                    o_nij_nxt = 4'd0;
+                    state_nxt = S_Idle;
+                end
+                else begin
+                    if(o_nij == 4'd15)begin
+                        o_nij_nxt = 4'd0;
+                        flush_cycle_nxt = 1'b1;
+                        state_nxt = S_Readout;
+                    end
+                    else begin
+                        o_nij_nxt = o_nij + 1'b1;
+                        flush_cycle_nxt = 1'b0;
+                        state_nxt = S_Readout;
+                    end
+                end           
+                nij_nxt = 6'd0; 
             end
-            else if(readout_mode && (readout_addr==4'd15)) begin //end readout
-                readout_mode   <= 1'b0;
-                readout_addr <= 4'd0;
+            default: begin
+                state_nxt = S_Init;
+                nij_nxt   = 6'd0;
+                o_nij_nxt = 4'd0;
+                flush_cycle_nxt = 1'b0;
             end
-            else if(readout_mode) begin //keep readout
-                readout_mode   <= 1'b1;
-                readout_addr <= readout_addr + 1'b1;
-            end
-            else begin
-                readout_mode   <= readout_mode;
-                readout_addr <= readout_addr;
-            end
-
-
-        end
+        endcase
     end
 
 
 
+    // state logic
+    always @(posedge clk ) begin
+        if(reset) begin
+            state <= S_Init;
+            nij   <= 6'b0;
+            o_nij <= 4'b0;
+            flush_cycle <= 1'b0;
+        end
+        else begin
+            state <= state_nxt;
+            nij   <= nij_nxt;
+            o_nij <= o_nij_nxt;
+            flush_cycle <= flush_cycle_nxt;
+        end
+    end
+
+
     // delayed signals
     always @(posedge clk ) begin   
         if(reset) begin
-            ofifo_valid_D1 <= 1'b0;
             ofifo_data_D1  <= {(psum_bw*col){1'b0}};
-            acc_D1       <= 1'b0;
-            o_addr_D1    <= 4'b0000;
+            ofifo_data_D2  <= {(psum_bw*col){1'b0}};
+            r_A_pmem_D1    <= 4'd0;
+            ren_pmem_D1    <= 1'b0;
         end
         else begin
-            ofifo_valid_D1 <= ofifo_valid;
             ofifo_data_D1  <= ofifo_data;
-            acc_D1       <= acc;
-            o_addr_D1    <= o_addr;
+            ofifo_data_D2  <= ofifo_data_D1;
+            r_A_pmem_D1    <= r_A_pmem;
+            ren_pmem_D1    <= ren_pmem;
         end
     end 
 
@@ -138,7 +202,6 @@ module SFU #(
 
 
 
-    
     
 
 
