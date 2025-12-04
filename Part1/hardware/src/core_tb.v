@@ -213,7 +213,10 @@ initial begin
   end
 
 
-  $display("############ Output Verification Start #############"); 
+
+
+
+
   out_file = $fopen("golden/out.txt", "r");  
   // Following three lines are to remove the first three comment lines of the file
   out_scan_file = $fscanf(out_file,"%s", answer); 
