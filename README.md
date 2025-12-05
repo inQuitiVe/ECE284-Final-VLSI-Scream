@@ -24,7 +24,7 @@ ECE284-Final-VLSI-Scream/
 │   ├── Alpha3/         # Huffman Decoder
 │   ├── Alpha4/         # Whole Conv Layer (BN, ReLU, MaxPooling)
 │   ├── Alpha5/         # Model Fusion (BN fusion)
-│   ├── Alpha6_FlexActFunc/  # Flexible Activation Functions
+│   ├── Alpha6/              # Flexible Activation Functions
 │   ├── Alpha7/         # SFU FSM Implementation
 │   └── Alpha8/         # ConvNext Application
 └── Poster/             # Project Poster
@@ -124,7 +124,7 @@ The fusion process transforms:
 
 **Status:** To be added
 
-### Alpha6_FlexActFunc: Flexible Activation Functions
+### Alpha6: Flexible Activation Functions
 Flexible activation function implementation supporting multiple activation types.
 
 **Features:**

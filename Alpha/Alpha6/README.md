@@ -40,7 +40,7 @@ The `ActivationFunction` module provides a unified interface that supports all f
 ## Directory Structure
 
 ```
-Alpha6_FlexActFunc/
+Alpha6/
 ├── src/
 │   ├── core_tb.v              # Testbench
 │   ├── core.v                 # Top-level core module
@@ -65,7 +65,7 @@ Alpha6_FlexActFunc/
 ### Basic Commands
 
 ```bash
-cd Alpha/Alpha6_FlexActFunc
+cd Alpha/Alpha6
 make [target]
 ```
 
