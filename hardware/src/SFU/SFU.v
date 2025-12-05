@@ -16,6 +16,8 @@ module SFU #(
     output [psum_bw*col-1:0]  D_pmem,
     // kernel index
     input  [3:0]              kij,
+    // activation function mode: 00: ReLU, 01: ELU, 10: LeakyReLU, 11: GELU
+    input  [1:0]              act_func_mode,
     // readout phase
     input                     readout_start, // trigger for output stage
     output [psum_bw*col-1:0]  readout        // 16*8b
@@ -61,20 +63,21 @@ module SFU #(
     assign wen_pmem = (state==S_Acc || state==S_ReLU) ? ren_pmem_D1 : 1'b0;
     
 
-    wire [psum_bw-1 : 0]  ReLU_out [col-1 : 0];
+    wire [psum_bw-1 : 0]  ActFunc_out [col-1 : 0];
     genvar i;
     generate
         for(i=0; i<col; i=i+1)begin: col_num
-            ReLU#(.psum_bw(psum_bw)) ReLU_instance(
+            ActivationFunction#(.psum_bw(psum_bw)) ActivationFunction_instance(
                 .in(Q_pmem[(i+1)*psum_bw-1 : i*psum_bw]),
-                .out(ReLU_out[i])
+                .act_func_mode(act_func_mode),
+                .out(ActFunc_out[i])
             );
         end
     endgenerate
 
     generate
         for(i=0; i<col; i=i+1)begin
-            assign D_pmem[(i+1)*psum_bw-1 : i*psum_bw] = (state==S_ReLU) ? ReLU_out[i] :
+            assign D_pmem[(i+1)*psum_bw-1 : i*psum_bw] = (state==S_ReLU) ? ActFunc_out[i] :
                                                          (state==S_Acc && kij==4'd0)  ?  ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw] : (Q_pmem[(i+1)*psum_bw-1 : i*psum_bw]+ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw]);
         end
     endgenerate

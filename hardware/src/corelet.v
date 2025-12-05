@@ -20,6 +20,8 @@ module corelet #(
   output [psum_bw*col-1:0] D_pmem,
   input                   is_os,
   input                   act_2b_mode,
+  // activation function mode: 00: ReLU, 01: ELU, 10: LeakyReLU, 11: GELU
+  input  [1:0]            act_func_mode,
 
   // For SFU
   input  [3:0]            kij,
@@ -101,6 +103,7 @@ module corelet #(
     .D_pmem       (D_pmem                  ),
     // output, valid
     .kij          (kij                     ),
+    .act_func_mode(act_func_mode           ),
     .readout_start(readout_start           ),
     .readout      (readout                 )  // 16*8b
   );

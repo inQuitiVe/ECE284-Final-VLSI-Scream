@@ -17,6 +17,8 @@ module core #(
   input [bw*col-1:0] D_xmem,  // 32b
   input              is_os,
   input              act_2b_mode,
+  // activation function mode: 00: ReLU, 01: ELU, 10: LeakyReLU, 11: GELU
+  input  [1:0]       act_func_mode,
   // // PSUM mem ctrls from TB
   // input           CEN_pmem,
   // input           WEN_pmem,
@@ -87,6 +89,7 @@ module core #(
     .D_pmem       (D_pmem             ),
     .is_os        (is_os              ),
     .act_2b_mode  (act_2b_mode         ),
+    .act_func_mode(act_func_mode       ),
     // for SFU
     .kij          (kij                ),
     .readout_start(readout_start      ),

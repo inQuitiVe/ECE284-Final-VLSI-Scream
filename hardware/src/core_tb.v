@@ -28,6 +28,8 @@ module core_tb;
   reg [bw*row-1:0] D_xmem;
   reg              is_os;
   reg              act_2b_mode;
+  // activation function mode: 00: ReLU, 01: ELU, 10: LeakyReLU, 11: GELU
+  reg [1:0]        act_func_mode;
 
   // X_MEM Ctrl (for activation.txt and weight.txt writing)
   reg        CEN_xmem = 1;
@@ -67,6 +69,7 @@ module core_tb;
     .D_xmem       (D_xmem             ),
     .is_os        (is_os              ),
     .act_2b_mode  (act_2b_mode        ),
+    .act_func_mode(act_func_mode      ),  // activation function mode
     .kij          (kij_SFUctrl        ),  // SFU control
     .readout_start(readout_start      ),  // Output to TB
     .readout      (readout            )
@@ -94,6 +97,19 @@ module core_tb;
     `else
         act_2b_mode  = 0;  // 4-bit activation mode (default)
         $display("## Running in 4-bit activation mode (ACT_2BIT not defined)");
+    `endif
+    `ifdef ACT_FUNC_ELU
+        act_func_mode = 2'b01;  // ELU
+        $display("## Activation function mode: 01 (ELU)");
+    `elsif ACT_FUNC_LEAKY
+        act_func_mode = 2'b10;  // LeakyReLU
+        $display("## Activation function mode: 10 (LeakyReLU)");
+    `elsif ACT_FUNC_GELU
+        act_func_mode = 2'b11;  // GELU
+        $display("## Activation function mode: 11 (GELU)");
+    `else
+        act_func_mode = 2'b00;  // Default to ReLU
+        $display("## Activation function mode: 00 (ReLU, default)");
     `endif
 
     `ifdef ACT_2BIT
