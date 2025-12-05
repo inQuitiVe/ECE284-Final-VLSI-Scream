@@ -13,8 +13,8 @@ def weight_quantization(b):
     class _pq(torch.autograd.Function):
         @staticmethod
         def forward(ctx, input, alpha):
-            input.div_(alpha)  # weights are first divided by alpha
-            input_c = input.clamp(min=-1, max=1)  # then clipped to [-1,1]
+            input.div_(alpha)
+            input_c = input.clamp(min=-1, max=1)
             sign = input_c.sign()
             input_abs = input_c.abs()
             input_q = uniform_quant(input_abs, b).mul(sign)
@@ -26,14 +26,9 @@ def weight_quantization(b):
         def backward(ctx, grad_output):
             grad_input = grad_output.clone()  # grad for weights will not be clipped
             input, input_q = ctx.saved_tensors
-            i = (
-                input.abs() > 1.0
-            ).float()  # >1 means clipped. # output matrix is a form of [True, False, True, ...]
-            sign = input.sign()  # output matrix is a form of [+1, -1, -1, +1, ...]
-            # grad_alpha = (grad_output*(sign*i + (input_q-input)*(1-i))).sum()
-            grad_alpha = (grad_output * (sign * i + (0.0) * (1 - i))).sum()
-            # above line, if i = True,  and sign = +1, "grad_alpha = grad_output * 1"
-            #             if i = False, "grad_alpha = grad_output * (input_q-input)"
+            i = (input.abs() > 1.0).float()
+            sign = input.sign()
+            grad_alpha = (grad_output * (sign * i + (input_q - input) * (1 - i))).sum()
             grad_input = grad_input * (1 - i)
             return grad_input, grad_alpha
 
@@ -77,8 +72,7 @@ def act_quantization(b):
             grad_input = grad_output.clone()
             input, input_q = ctx.saved_tensors
             i = (input > 1.0).float()
-            # grad_alpha = (grad_output * (i + (input_q - input) * (1 - i))).sum()
-            grad_alpha = (grad_output * (i + (0.0) * (1 - i))).sum()
+            grad_alpha = (grad_output * (i + (input_q - input) * (1 - i))).sum()
             grad_input = grad_input * (1 - i)
             return grad_input, grad_alpha
 
@@ -98,6 +92,7 @@ class QuantConv2d(nn.Conv2d):
         bias=False,
         weight_bits=4,
         act_bits=4,
+        is_positive=True,
     ):
         super(QuantConv2d, self).__init__(
             in_channels,
@@ -110,17 +105,27 @@ class QuantConv2d(nn.Conv2d):
             bias,
         )
         self.weight_quant = weight_quantize_fn(w_bit=weight_bits)
-        self.act_alq = act_quantization(act_bits)
+        if is_positive:
+            self.act_quant = act_quantization(act_bits)
+        else:
+            self.act_quant = weight_quantization(act_bits)
+
         self.act_alpha = torch.nn.Parameter(torch.tensor(8.0))
-        self.weight_q = torch.nn.Parameter(
-            torch.zeros([out_channels, in_channels, kernel_size, kernel_size])
+        self.register_buffer(
+            "weight_q",
+            torch.zeros(
+                out_channels,
+                in_channels // groups,
+                kernel_size,
+                kernel_size,
+                dtype=torch.int8,
+            ),
         )
 
     def forward(self, x):
         weight_q = self.weight_quant(self.weight)
-        # self.register_parameter('weight_q', Parameter(weight_q))  # Mingu added
-        self.weight_q = torch.nn.Parameter(weight_q)
-        x = self.act_alq(x, self.act_alpha)
+        x = self.act_quant(x, self.act_alpha)
+
         return F.conv2d(
             x,
             weight_q,
@@ -139,3 +144,109 @@ class QuantConv2d(nn.Conv2d):
                 wgt_alpha, act_alpha
             )
         )
+
+
+class QuantLinear(nn.Linear):
+    def __init__(
+        self,
+        in_features,
+        out_features,
+        bias=False,
+        weight_bits=4,
+        act_bits=4,
+        is_positive=True,
+    ):
+        super(QuantLinear, self).__init__(
+            in_features,
+            out_features,
+            bias,
+        )
+        self.weight_quant = weight_quantize_fn(w_bit=weight_bits)
+
+        if is_positive:
+            self.act_quant = act_quantization(act_bits)
+        else:
+            self.act_quant = weight_quantization(act_bits)
+        self.act_alpha = torch.nn.Parameter(torch.tensor(8.0))
+        self.register_buffer(
+            "weight_q", torch.zeros(out_features, in_features, dtype=torch.int8)
+        )
+
+    def forward(self, x):
+        weight_q = self.weight_quant(self.weight)
+        self.weight_q = weight_q.detach().to(torch.int8)
+        x = self.act_quant(x, self.act_alpha)
+        return F.linear(
+            input=x,
+            weight=weight_q,
+            bias=self.bias,
+        )
+
+    def show_params(self):
+        wgt_alpha = round(self.weight_quant.wgt_alpha.data.item(), 3)
+        act_alpha = round(self.act_alpha.data.item(), 3)
+        print(
+            "clipping threshold weight alpha: {:2f}, activation alpha: {:2f}".format(
+                wgt_alpha, act_alpha
+            )
+        )
+
+
+class QuantConvNext(nn.Module):
+    def __init__(
+        self,
+        dim,
+        hidden_factor=4,
+        layer_scale_init_value=1e-6,
+        weight_bits=4,
+        act_bits=4,
+    ):
+        super().__init__()
+
+        self.dwconv = QuantConv2d(
+            dim,
+            dim,
+            kernel_size=7,
+            padding=3,
+            groups=dim,
+            weight_bits=weight_bits,
+            act_bits=act_bits,
+            is_positive=False,
+        )
+
+        self.pwconv = nn.Sequential(
+            Permute((0, 2, 3, 1)),
+            nn.LayerNorm(dim, eps=layer_scale_init_value),
+            QuantLinear(
+                dim,
+                hidden_factor * dim,
+                weight_bits=weight_bits,
+                act_bits=act_bits,
+                is_positive=False,
+            ),
+            nn.LeakyReLU(),
+            QuantLinear(
+                hidden_factor * dim,
+                dim,
+                weight_bits=weight_bits,
+                act_bits=act_bits,
+                is_positive=False,
+            ),
+        )
+        self.gamma = (
+            nn.Parameter(layer_scale_init_value * torch.ones((dim)), requires_grad=True)
+            if layer_scale_init_value > 0
+            else None
+        )
+
+    def forward(self, x):
+        return (self.gamma * (self.pwconv((self.dwconv(x))))).permute(0, 3, 1, 2) + x
+
+
+class Permute(nn.Module):
+    def __init__(self, dims):
+        super().__init__()
+        self.dims = dims
+
+    def forward(self, x):
+        return x.permute(*self.dims).contiguous()

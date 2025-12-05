@@ -40,16 +40,22 @@
 
 - The input data is the **1st image** of the **test data** in CIFAR10
 
+- **Original VGG16 Model** achieves an accuracy of **92.13%**
+
 - Outputs are 16 bits
 
 - `path/` files can be downloaded from `https://drive.google.com/drive/folders/1Msoyvbh17tpp8IkoSukHmSEJGndVMcX8?usp=drive_link`
 
 # Alphas
 
-1. For 4-bit BN-Fused Model
+1. For ConvNext Model
 
-- It achieves an accuracy of **92.13%**
+- It achieves an accuracy of **89.70%**
 
-2. For 2-bit BN-Fused Model (**TODO**)
+- BN Fusion is finished in `.quant_model`
 
-- It achieves an accuracy of ...
+# TODO
+
+1. **LayerNorm** Hardware implementation can be tricky
+
+2. Act Quantization doesn't support **negative inputs**

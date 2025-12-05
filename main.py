@@ -13,24 +13,19 @@ from einops import rearrange
 
 class ModelTrainer:
     """r
-
     Train and validate model;
-
     Extract a certain quantized layer into a specific format
-
     """
 
     def __init__(self, debug=True):
-        model = VGG_quant(
-            vgg_name=bargs.model_name,
+        model = ConvNext_quant(
+            model_name=bargs.model_name,
             weight_bits=bargs.weight_bits,
             act_bits=bargs.act_bits,
         ).to(bargs.device)
 
         model_path = "./path/" + bargs.model_save_name + ".pth"
-
         if os.path.exists(model_path):
-
             model.load_state_dict(
                 torch.load(
                     model_path,
@@ -41,22 +36,17 @@ class ModelTrainer:
         train_loader, test_loader = get_data_loaders()
 
         if debug:
-
             print(model)
-
             print(
                 f"{bargs.layer_num}th layer of model is "
                 + str(model.features[bargs.layer_num])
             )
 
+        self.best_accuracy = 0
         self.model = model
-
         self.train_loader = train_loader
-
         self.test_loader = test_loader
-
         self.criterion = nn.CrossEntropyLoss().to(bargs.device)
-
         self.optimizer = optim.AdamW(
             model.parameters(), lr=bargs.init_lr, weight_decay=1e-5
         )
@@ -69,44 +59,50 @@ class ModelTrainer:
         for epoch in range(1, bargs.epochs + 1):
             self.model.train()
 
+            step = 0
             for input, target in self.train_loader:
                 input, target = input.to(bargs.device), target.to(bargs.device)
                 output = self.model(input)
                 loss = self.criterion(output, target)
-                self.optimizer.zero_grad()
                 loss.backward()
-                self.optimizer.step()
+                step += 1
 
-            if epoch % bargs.check_epoch == 0 or epoch % bargs.save_epoch == 0:
-                self.fused_model = self.model.fuse_model()
+                if step % bargs.update_steps == 0:
+                    self.optimizer.step()
+                    self.optimizer.zero_grad()
+
+            if step % bargs.update_steps != 0 and step > 0:
+                self.optimizer.step()
+                self.optimizer.zero_grad()
 
             if epoch % bargs.check_epoch == 0:
                 self.validate(epoch)
 
-            if epoch % bargs.save_epoch == 0:
-                torch.save(
-                    self.fused_model.state_dict(),
-                    f"./path/" + bargs.model_save_name + f"_{epoch}.pth",
-                )
-
-                print("Model Successfully Saved!")
-
             self.scheduler.step()
 
     def validate(self, epoch):
-        self.fused_model.eval()
+        self.model.eval()
         correct_count = 0
         total_count = 0
 
-        for test_input, test_target in self.test_loader:
-            test_input = test_input.to(bargs.device)
-            test_target = test_target.to(bargs.device)
-            test_output = self.fused_model(test_input)
-            preds = test_output.argmax(dim=1)
-            correct_count += (preds == test_target).sum().item()
-            total_count += test_target.size(0)
+        with torch.no_grad():
+            for test_input, test_target in self.test_loader:
+                test_input = test_input.to(bargs.device)
+                test_target = test_target.to(bargs.device)
+                test_output = self.model(test_input)
+                preds = test_output.argmax(dim=1)
+                correct_count += (preds == test_target).sum().item()
+                total_count += test_target.size(0)
 
         accuracy = (correct_count / total_count) * 100
+
+        if accuracy > self.best_accuracy:
+            torch.save(
+                self.model.state_dict(),
+                f"./path/" + bargs.model_save_name + f".pth",
+            )
+            self.best_accuracy = accuracy
+
         print(f"Epoch {epoch}, Accuracy: {accuracy:.2f}%")
 
     def extract_layer(self, layer_num=27, w_bit=4, act_bit=4):
@@ -284,7 +280,7 @@ class ModelTrainer:
 
 if __name__ == "__main__":
     trainer = ModelTrainer(debug=True)
-    # trainer.run()
-    trainer.extract_layer(
-        layer_num=bargs.layer_num, w_bit=bargs.weight_bits, act_bit=bargs.act_bits
-    )
+    trainer.run()
+    # trainer.extract_layer(
+    #     layer_num=bargs.layer_num, w_bit=bargs.weight_bits, act_bit=bargs.act_bits
+    # )
