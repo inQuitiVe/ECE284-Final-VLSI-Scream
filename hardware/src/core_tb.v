@@ -338,7 +338,7 @@ module core_tb;
     // out_file = $fopen("golden/ws2bit/output.txt", "r");
     out_file = $fopen("golden/ws2bit/expected_output_from_psum_binary.txt", "r");
   `else
-    out_file = $fopen("golden/ws4bit/output_relu.txt", "r");
+    out_file = $fopen("golden/ws4bit/out.txt", "r");
   `endif  
   // Following three lines are to remove the first three comment lines of the file
   out_scan_file = $fscanf(out_file,"%s", answer); 
