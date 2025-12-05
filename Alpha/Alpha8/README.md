@@ -1,137 +1,61 @@
-# Alpha 8: ConvNext Application
+# Done
 
-## Overview
+> Files for **4 bits** and **2 bits** accuracies are stored in "./Files/" Folder
 
-Alpha 8 implements and evaluates the ConvNext architecture, a modern CNN architecture that achieves comparable accuracy to VGGNet with significantly fewer parameters. This version demonstrates the accelerator's capability to run state-of-the-art neural network architectures efficiently.
+## 4 bits Model 
 
-## Key Innovation
+- It achieves **91.53%** accuracy
 
-**Implementation and evaluation of ConvNext, achieving ~90% accuracy (4-bit) with 51% fewer parameters compared to VGGNet.**
+## 2 bit Model
 
-ConvNext represents a modern approach to CNN design, using depthwise separable convolutions and efficient architectural patterns to reduce model size while maintaining accuracy.
+- It achieves **90.67%** accuracy
 
-## Architecture Overview
+## Shapes of txt Files
 
-### ConvNext Structure
+1. Output Stationary:
 
-```
-Input (224×224×3)
-  ↓
-Conv24 (96×96×96)
-  ↓
-Layer Norm
-  ↓
-ConvNext Block ×3
-  ↓
-Down Sample → (28×28×192)
-  ↓
-ConvNext Block ×3
-  ↓
-Down Sample → (14×14×384)
-  ↓
-ConvNext Block ×9
-  ↓
-Down Sample → (7×7×768)
-  ↓
-ConvNext Block ×3
-  ↓
-Layer Norm
-  ↓
-Global Avg Pooling → (1×1×768)
-  ↓
-Softmax
-```
+| Parameter | Output Stationary |
+|---|---|
+| Weight Number | $(2, k^2, \dfrac{C_{in}}{t})$ |
+| Weight Shape | $(t, \dfrac{C_{out}}{2} )$ |
+| Input Number | $(2, \dfrac{C_{in}}{t})$ |
+| Input Shapes | $(t,4,w+2p)$ |
 
-### Feature Map Progression
+2. Weight Stationary:
 
-| Stage | Feature Map Size | Channels |
-|-------|-----------------|----------|
-| Input | 224×224 | 3 |
-| Stage 1 | 96×96 | 96 |
-| Stage 2 | 28×28 | 192 |
-| Stage 3 | 14×14 | 384 |
-| Stage 4 | 7×7 | 768 |
-| Output | 1×1 | 768 |
+| Parameter | Weight Stationary |
+|---|---|
+| Input Number | $\dfrac{C_{in}}{t}$ |
+| Input Shape | $(t, h+2p, w+2p)$ |
+| Weight Number | $(k^2, \dfrac{C_{in}}{t}, \dfrac{C_{out}}{t})$ |
+| Weight Shape | $(t, t)$ |
 
-## Model Comparison
+- $h=w=4, t = \text{tile size} = 8$
 
-| Model | Size | Accuracy (4-bit) | Parameters |
-|-------|------|-----------------|------------|
-| VGGNet | 68.7 MB | ~90% | ~138M |
-| ConvNext | 33.0 MB | ~90% | ~28M |
+- Outputs are $(t, \dfrac{C_{out}}{t} hw  )$
 
-**Key Advantages:**
-- **51% model size reduction** (68.7 MB → 33.0 MB)
-- **Similar accuracy** (~90% at 4-bit quantization)
-- **Fewer parameters** enable faster inference and lower memory requirements
+## Others
 
-## ConvNext Block Structure
+- All the `.txt` files are extracted from the **27th** layer of the Model.
 
-Each ConvNext block typically contains:
-1. **Depthwise Convolution**: Efficient spatial feature extraction
-2. **Pointwise Convolution**: Channel mixing
-3. **Layer Normalization**: Normalization across channels
-4. **GELU Activation**: Gaussian Error Linear Unit
-5. **Residual Connection**: Skip connection for gradient flow
+- The input data is the **1st image** of the **test data** in CIFAR10
 
-## Implementation Features
+- **Original VGG16 Model** achieves an accuracy of **92.13%**
 
-### Supported Operations
-- **Depthwise Separable Convolutions**: Efficient convolution pattern
-- **Layer Normalization**: Channel-wise normalization
-- **Global Average Pooling**: Spatial dimension reduction
-- **GELU Activation**: Modern activation function (supported via Alpha 6)
+- Outputs are 16 bits
 
-### Quantization
-- **4-bit Quantization**: Maintains ~90% accuracy
-- **Weight Quantization**: Reduced model size
-- **Activation Quantization**: Lower memory bandwidth
+- `path/` files can be downloaded from `https://drive.google.com/drive/folders/1Msoyvbh17tpp8IkoSukHmSEJGndVMcX8?usp=drive_link`
 
-## Directory Structure
+# Alphas
 
-```
-Alpha8/
-└── [Implementation files to be added]
-```
+1. For ConvNext Model
 
-## Usage
+- It achieves an accuracy of **89.70%**
 
-### Model Deployment
+- BN Fusion is finished in `.quant_model`
 
-1. **Model Conversion**: Convert trained ConvNext model to accelerator format
-2. **Quantization**: Apply 4-bit quantization to weights and activations
-3. **Layer Mapping**: Map ConvNext layers to accelerator operations
-4. **Execution**: Run inference on the accelerator
+# TODO
 
-### Performance Evaluation
+1. **LayerNorm** Hardware implementation can be tricky
 
-Compare against VGGNet:
-- **Accuracy**: Maintain ~90% at 4-bit
-- **Model Size**: 51% reduction
-- **Inference Speed**: Faster due to fewer parameters
-- **Memory Usage**: Lower memory footprint
-
-## Hardware Requirements
-
-- **MAC Array**: 8×8 systolic array (sufficient for ConvNext operations)
-- **Activation Functions**: GELU support (via Alpha 6)
-- **Normalization**: Layer normalization support
-- **Memory**: Reduced memory requirements compared to VGGNet
-
-## Status
-
-**To be added** - This application is planned for future implementation.
-
-## Notes
-
-- ConvNext demonstrates the accelerator's flexibility for modern architectures
-- The reduced parameter count makes it ideal for edge deployment
-- Layer normalization can be fused similar to BN (Alpha 5) for further optimization
-- Global Average Pooling can be efficiently implemented in the SFU
-
-## Related Work
-
-- **Alpha 4**: Whole Conv Layer implementation (BN, ReLU, MaxPooling)
-- **Alpha 5**: Model Fusion (can be applied to Layer Norm in ConvNext)
-- **Alpha 6**: Flexible Activation Functions (GELU support for ConvNext)
-
+2. Act Quantization doesn't support **negative inputs**
