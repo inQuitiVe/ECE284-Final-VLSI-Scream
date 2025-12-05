@@ -24,7 +24,7 @@ module SFU #(
     // state
     localparam S_Init    = 3'd0;
     localparam S_Acc     = 3'd1;
-    localparam S_ReLU    = 3'd2;
+    localparam S_SPF    = 3'd2;
     localparam S_Idle    = 3'd3;
     localparam S_Readout = 3'd4;
 
@@ -46,19 +46,44 @@ module SFU #(
         .nij(nij), .kij(kij), .acc(cal_acc), .o_addr(cal_o_nij)
     );
 
-
     // delayed signals
     reg [psum_bw*col-1:0] ofifo_data_D1, ofifo_data_D2;
     reg [3:0]             r_A_pmem_D1;
-    reg [3:0]             ren_pmem_D1;
+    reg                   ren_pmem_D1;
+
+
+
+
+
+    // #############################
+    // #     Max Pooling Layer     # 
+    // #############################
+    wire [3:0]  MPL_access_onij;
+    wire [1:0]  MPL_onij;
+    
+    mpl_onij_calculator mpl_onij_calculator_instance(
+        .order(o_nij), .o_nij(MPL_access_onij), .mpl_onij(MPL_onij)
+    );
+
+    max4#(.bw(psum_bw)) max4_instance(
+        .clk(clk),
+        .reset(reset),
+        .in(Q_pmem[15:0]),
+        .take_MPL(~|o_nij[1:0]),
+        .out()
+    );
+
+
+
+    
 
     
     assign readout = Q_pmem;
     assign r_A_pmem = (state==S_Acc && cal_acc) ? cal_o_nij :
-                      (state==S_ReLU || state==S_Readout) ? o_nij : 4'd0;
-    assign ren_pmem = (state==S_Acc && cal_acc || state==S_ReLU || state==S_Readout) && (~flush_cycle);
-    assign w_A_pmem = (state==S_Acc || state==S_ReLU) ? r_A_pmem_D1 : 4'd0;
-    assign wen_pmem = (state==S_Acc || state==S_ReLU) ? ren_pmem_D1 : 1'b0;
+                      (state==S_SPF || state==S_Readout) ? o_nij : 4'd0;
+    assign ren_pmem = (state==S_Acc && cal_acc || state==S_SPF || state==S_Readout) && (~flush_cycle);
+    assign w_A_pmem = (state==S_Acc || state==S_SPF) ? r_A_pmem_D1 : 4'd0;
+    assign wen_pmem = (state==S_Acc || state==S_SPF) ? ren_pmem_D1 : 1'b0;
     
 
     wire [psum_bw-1 : 0]  ReLU_out [col-1 : 0];
@@ -74,7 +99,7 @@ module SFU #(
 
     generate
         for(i=0; i<col; i=i+1)begin
-            assign D_pmem[(i+1)*psum_bw-1 : i*psum_bw] = (state==S_ReLU) ? ReLU_out[i] :
+            assign D_pmem[(i+1)*psum_bw-1 : i*psum_bw] = (state==S_SPF) ? ReLU_out[i] :
                                                          (state==S_Acc && kij==4'd0)  ?  ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw] : (Q_pmem[(i+1)*psum_bw-1 : i*psum_bw]+ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw]);
         end
     endgenerate
@@ -91,7 +116,7 @@ module SFU #(
                 if(flush_cycle)begin
                     flush_cycle_nxt = 1'b0;
                     nij_nxt = 6'd0;
-                    state_nxt = (kij==4'd8)? S_ReLU : S_Idle;
+                    state_nxt = (kij==4'd8)? S_SPF : S_Idle;
                 end
                 else begin
                     if(nij == 6'd35)begin
@@ -107,7 +132,7 @@ module SFU #(
                 end    
                 o_nij_nxt = 4'd0;             
             end
-            S_ReLU: begin
+            S_SPF: begin
                 if(flush_cycle)begin
                     flush_cycle_nxt = 1'b0;
                     o_nij_nxt = 4'd0;
@@ -117,12 +142,12 @@ module SFU #(
                     if(o_nij == 4'd15)begin
                         o_nij_nxt = 4'd0;
                         flush_cycle_nxt = 1'b1;
-                        state_nxt = S_ReLU;
+                        state_nxt = S_SPF;
                     end
                     else begin
                         o_nij_nxt = o_nij + 1'b1;
                         flush_cycle_nxt = 1'b0;
-                        state_nxt = S_ReLU;
+                        state_nxt = S_SPF;
                     end
                 end           
                 nij_nxt = 6'd0;      
