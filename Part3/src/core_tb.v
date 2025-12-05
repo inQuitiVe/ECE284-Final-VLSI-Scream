@@ -330,11 +330,6 @@ module core_tb;
     `endif
   end  // end of kij loop
 
-  $display("## Conv End. Waiting for ReLU\n");
-    for (i=0; i<20 ; i=i+1) begin
-      #0.5 clk = 1'b0;
-      #0.5 clk = 1'b1;  
-    end
 
 
 
@@ -343,7 +338,7 @@ module core_tb;
     // out_file = $fopen("golden/ws2bit/output.txt", "r");
     out_file = $fopen("golden/ws2bit/expected_output_from_psum_binary.txt", "r");
   `else
-    out_file = $fopen("golden/ws4bit/out.txt", "r");
+    out_file = $fopen("golden/ws4bit/output_relu.txt", "r");
   `endif  
   // Following three lines are to remove the first three comment lines of the file
   out_scan_file = $fscanf(out_file,"%s", answer); 

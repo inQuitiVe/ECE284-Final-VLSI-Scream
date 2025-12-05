@@ -1,9 +1,7 @@
 src/core_tb.v
 src/core.v
 src/corelet.v
-src/SFU/SFU.v
-src/SFU/ReLU.v
-src/SFU/onij_calculator.v
+src/SFU.v
 src/Mac/mac_array.v
 src/Mac/mac_row.v
 src/Mac/mac_tile.v
