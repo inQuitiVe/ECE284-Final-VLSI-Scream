@@ -1,0 +1,11 @@
+src/alpha4_tb.v
+src/SFU/onij_calculator.v
+src/SFU/ReLU.v
+src/SFU/SFU.v
+src/SFU/mpl_onij_calculator.v
+src/SFU/max4.v
+src/SRAM/sram_128b_w16_RW.v
+src/FIFO/fifo_depth64.v
+src/FIFO/fifo_mux_2_1.v
+src/FIFO/fifo_mux_8_1.v
+src/FIFO/fifo_mux_16_1.v
