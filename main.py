@@ -17,9 +17,10 @@ class ModelTrainer:
     Extract a certain quantized layer into a specific format
     """
 
-    def __init__(self, debug=True):
-        model = ConvNext_quant(
+    def __init__(self, debug=True, fuse_model=False):
+        model = VGG_quant(
             model_name=bargs.model_name,
+            model_config=bargs.model_config,
             weight_bits=bargs.weight_bits,
             act_bits=bargs.act_bits,
         ).to(bargs.device)
@@ -33,8 +34,6 @@ class ModelTrainer:
                 )
             )
 
-        train_loader, test_loader = get_data_loaders()
-
         if debug:
             print(model)
             print(
@@ -42,6 +41,7 @@ class ModelTrainer:
                 + str(model.features[bargs.layer_num])
             )
 
+        train_loader, test_loader = get_data_loaders()
         self.best_accuracy = 0
         self.model = model
         self.train_loader = train_loader
@@ -54,6 +54,9 @@ class ModelTrainer:
         self.scheduler = optim.lr_scheduler.CosineAnnealingLR(
             self.optimizer, T_max=bargs.epochs, eta_min=bargs.final_lr
         )
+
+        if fuse_model:
+            self.validate(0, model.fuse_model())
 
     def run(self):
         for epoch in range(1, bargs.epochs + 1):
@@ -76,11 +79,11 @@ class ModelTrainer:
                 self.optimizer.zero_grad()
 
             if epoch % bargs.check_epoch == 0:
-                self.validate(epoch)
+                self.validate(epoch, self.model)
 
             self.scheduler.step()
 
-    def validate(self, epoch):
+    def validate(self, epoch, model):
         self.model.eval()
         correct_count = 0
         total_count = 0
@@ -109,54 +112,61 @@ class ModelTrainer:
         print(f"Extracting data from Layer {layer_num}...")
 
         # Only take 1st image of the batch
+        conv_layer = self.model.features[layer_num]
+
         captured = {}
+        h_conv = self.model.features[layer_num].register_forward_pre_hook(
+            lambda m, i: captured.update({"conv": i[0].detach()})
+        )
+        h_relu = self.model.features[layer_num + 2].register_forward_pre_hook(
+            lambda m, i: captured.update({"relu": i[0].detach()})
+        )
 
-        def hook_curr_in(m, i):
-            captured["in"] = i[0].detach()
-
-        def hook_output(m, i):
-            captured["output"] = i[0].detach()
-
-        target_layer = self.model.features[layer_num]
-        next_layer = self.model.features[layer_num + 2]
-        h1 = target_layer.register_forward_pre_hook(hook_curr_in)
-        h2 = next_layer.register_forward_pre_hook(hook_output)
         self.model.eval()
-
         images, _ = next(iter(self.test_loader))
         with torch.no_grad():
             self.model(images.to(bargs.device))
-        h1.remove()
-        h2.remove()
+        h_conv.remove()
+        h_relu.remove()
 
-        # 1. Quantization
-        w_alpha = target_layer.weight_quant.wgt_alpha
+        # Quantization
+        w_alpha = conv_layer.weight_quant.wgt_alpha
         w_scale = w_alpha / (2 ** (w_bit - 1) - 1)
-        weight_int = torch.round(target_layer.weight_q / w_scale)
-        input_float = captured["in"][0]
+        weight_int = torch.round(conv_layer.weight_q / w_scale)
+        input_float = captured["conv"][0]
 
-        act_alpha = target_layer.act_alpha
+        act_alpha = conv_layer.act_alpha
         a_scale = act_alpha / (2**act_bit - 1)
         act_quant_fn = act_quantization(act_bit)
-        act_int = torch.round(act_quant_fn(input_float, act_alpha) / a_scale)
+        act_int = torch.round(act_quant_fn(input_float, act_alpha) / a_scale).unsqueeze(
+            0
+        )
 
-        # 2. Conv
+        # Conv
         output_int = F.relu_(
             F.conv2d(
-                act_int.unsqueeze(0),
+                act_int,
                 weight_int,
-                stride=target_layer.stride,
-                padding=target_layer.padding,
+                stride=conv_layer.stride,
+                padding=conv_layer.padding,
             )
         ).squeeze(0)
 
-        # 3. Save Files
+        output_ref = F.relu_(
+            F.conv2d(
+                input_float,
+                conv_layer.weight,
+                stride=conv_layer.stride,
+                padding=conv_layer.padding,
+            )
+        ).squeeze(0)
 
+        # Save Files
         if bargs.pe_config == "ws":
             for i in range(bargs.tile_image_size):
                 self._save_file(
                     data=rearrange(
-                        F.pad(act_int.unsqueeze(0), pad=(1, 1, 1, 1), value=0),
+                        F.pad(act_int, pad=(1, 1, 1, 1), value=0),
                         "1 (th ts) h w -> th ts (h w)",
                         th=bargs.tile_image_size,
                         ts=bargs.tile_size,
@@ -193,7 +203,7 @@ class ModelTrainer:
                     )
 
         elif bargs.pe_config == "os":
-            act_padded = F.pad(act_int.unsqueeze(0), (1, 1, 1, 1))
+            act_padded = F.pad(act_int, (1, 1, 1, 1))
             for i in range(bargs.channel // bargs.tile_size):
                 for j in range(2):
                     self._save_file(
@@ -249,12 +259,53 @@ class ModelTrainer:
                 bits=16,
             )
 
-        # 4. Error Calculation
-        output_recovered = output_int * w_scale * a_scale
-        output_ref = captured["output"][0]
-        error = (output_recovered - output_ref).abs().mean()
+            if "bn" in bargs.model_config:
+                bn = self.model.features[layer_num + 1]
+                mu = bn.running_mean.reshape(bargs.tile_size, -1).to(torch.float16)
+                sigma = (
+                    torch.sqrt(bn.running_var + bn.eps)
+                    .reshape(bargs.tile_size, -1)
+                    .to(torch.float16)
+                )
+                gamma = bn.weight.reshape(bargs.tile_size, -1).to(torch.float16)
+                beta = bn.bias.reshape(bargs.tile_size, -1).to(torch.float16)
 
-        print(f"Files generated. Verification Error: {error.item():.6f}")
+                self._save_file(
+                    data=mu[:, i].unsqueeze(-1).unsqueeze(-1),
+                    filename="./Files/" + str(act_bit) + "bit/bn_mu_" + str(i) + ".txt",
+                    bits=16,
+                )
+                self._save_file(
+                    data=sigma[:, i].unsqueeze(-1),
+                    filename="./Files/"
+                    + str(act_bit)
+                    + "bit/bn_sigma_"
+                    + str(i)
+                    + ".txt",
+                    bits=16,
+                )
+                self._save_file(
+                    data=gamma[:, i].unsqueeze(-1),
+                    filename="./Files/"
+                    + str(act_bit)
+                    + "bit/bn_gamma_"
+                    + str(i)
+                    + ".txt",
+                    bits=16,
+                )
+                self._save_file(
+                    data=beta[:, i].unsqueeze(-1),
+                    filename="./Files/"
+                    + str(act_bit)
+                    + "bit/bn_beta_"
+                    + str(i)
+                    + ".txt",
+                    bits=16,
+                )
+
+        # Error Calculation
+        error = (captured["relu"][0] - output_ref).abs().mean()
+        print(f"Difference between quantized and floating version: {error.item():.6f}")
 
     def _save_file(self, data, filename, bits):
         os.makedirs(os.path.dirname(filename), exist_ok=True)
@@ -280,7 +331,7 @@ class ModelTrainer:
 
 if __name__ == "__main__":
     trainer = ModelTrainer(debug=True)
-    trainer.run()
-    # trainer.extract_layer(
-    #     layer_num=bargs.layer_num, w_bit=bargs.weight_bits, act_bit=bargs.act_bits
-    # )
+    # trainer.run()
+    trainer.extract_layer(
+        layer_num=bargs.layer_num, w_bit=bargs.weight_bits, act_bit=bargs.act_bits
+    )

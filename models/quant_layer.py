@@ -28,7 +28,8 @@ def weight_quantization(b):
             input, input_q = ctx.saved_tensors
             i = (input.abs() > 1.0).float()
             sign = input.sign()
-            grad_alpha = (grad_output * (sign * i + (input_q - input) * (1 - i))).sum()
+            # grad_alpha = (grad_output * (sign * i + (input_q - input) * (1 - i))).sum()
+            grad_alpha = (grad_output * sign * i).sum()
             grad_input = grad_input * (1 - i)
             return grad_input, grad_alpha
 
@@ -40,7 +41,7 @@ class weight_quantize_fn(nn.Module):
         super(weight_quantize_fn, self).__init__()
         self.w_bit = w_bit - 1
         self.weight_q = weight_quantization(b=self.w_bit)
-        self.register_parameter("wgt_alpha", Parameter(torch.tensor(3.0)))
+        self.wgt_alpha = nn.Parameter(torch.tensor(3.0))
 
     def forward(self, weight):
         mean = weight.data.mean()
@@ -72,7 +73,8 @@ def act_quantization(b):
             grad_input = grad_output.clone()
             input, input_q = ctx.saved_tensors
             i = (input > 1.0).float()
-            grad_alpha = (grad_output * (i + (input_q - input) * (1 - i))).sum()
+            # grad_alpha = (grad_output * (i + (input_q - input) * (1 - i))).sum()
+            grad_alpha = (grad_output * i).sum()
             grad_input = grad_input * (1 - i)
             return grad_input, grad_alpha
 
@@ -110,25 +112,15 @@ class QuantConv2d(nn.Conv2d):
         else:
             self.act_quant = weight_quantization(act_bits)
 
-        self.act_alpha = torch.nn.Parameter(torch.tensor(8.0))
-        self.register_buffer(
-            "weight_q",
-            torch.zeros(
-                out_channels,
-                in_channels // groups,
-                kernel_size,
-                kernel_size,
-                dtype=torch.int8,
-            ),
+        self.act_alpha = nn.Parameter(torch.tensor(8.0))
+        self.weight_q = nn.Parameter(
+            torch.zeros(out_channels, in_channels // groups, kernel_size, kernel_size)
         )
 
     def forward(self, x):
-        weight_q = self.weight_quant(self.weight)
-        x = self.act_quant(x, self.act_alpha)
-
         return F.conv2d(
-            x,
-            weight_q,
+            self.act_quant(x, self.act_alpha),
+            self.weight_quant(self.weight),
             self.bias,
             self.stride,
             self.padding,
@@ -167,18 +159,14 @@ class QuantLinear(nn.Linear):
             self.act_quant = act_quantization(act_bits)
         else:
             self.act_quant = weight_quantization(act_bits)
-        self.act_alpha = torch.nn.Parameter(torch.tensor(8.0))
-        self.register_buffer(
-            "weight_q", torch.zeros(out_features, in_features, dtype=torch.int8)
-        )
+
+        self.act_alpha = nn.Parameter(torch.tensor(8.0))
+        self.weight_q = nn.Parameter(torch.zeros(out_features, in_features))
 
     def forward(self, x):
-        weight_q = self.weight_quant(self.weight)
-        self.weight_q = weight_q.detach().to(torch.int8)
-        x = self.act_quant(x, self.act_alpha)
         return F.linear(
-            input=x,
-            weight=weight_q,
+            input=self.act_quant(x, self.act_alpha),
+            weight=self.weight_quant(self.weight),
             bias=self.bias,
         )
 

@@ -6,6 +6,8 @@
 
 - It achieves **91.53%** accuracy
 
+- **VGG16 Model with BN in all layers** achieves an accuracy of **92.13%**
+
 ## 2 bit Model
 
 - It achieves **90.67%** accuracy
@@ -40,8 +42,6 @@
 
 - The input data is the **1st image** of the **test data** in CIFAR10
 
-- **Original VGG16 Model** achieves an accuracy of **92.13%**
-
 - Outputs are 16 bits
 
 - `path/` files can be downloaded from `https://drive.google.com/drive/folders/1Msoyvbh17tpp8IkoSukHmSEJGndVMcX8?usp=drive_link`
@@ -51,8 +51,6 @@
 1. For ConvNext Model
 
 - It achieves an accuracy of **89.70%**
-
-- BN Fusion is finished in `.quant_model`
 
 # TODO
 
