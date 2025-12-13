@@ -21,11 +21,11 @@ def transform_activation_file(input_file, output_file):
                    - row 1: time [1,2,3,4, 7,8,9,10]
                    - row 2: time [3,4,5,6, 9,10,11,12]
                    - row 3: time [6,7,8,9, 12,13,14,15]
-                   - row 4: time [9,10,11,12, 15,16,17,18]
-                   - row 5: time [12,13,14,15, 18,19,20,21]
-                   - row 6: time [15,16,17,18, 21,22,23,24]
-                   - row 7: time [18,19,20,21, 24,25,26,27]
-                   - row 8: time [21,22,23,24, 27,28,29,30]
+                   - row 4: time [7,8,9,10, 13,14,15,16]
+                   - row 5: time [8,9,10,11, 14,15,16,17]
+                   - row 6: time [12,13,14,15, 18,19,20,21]
+                   - row 7: time [13,14,15,16, 19,20,21,22]
+                   - row 8: time [14,15,16,17, 20,21,22,23]
                    This pattern repeats 8 times (once for each original row)
     """
     with open(input_file, 'r') as f:
@@ -66,11 +66,11 @@ def transform_activation_file(input_file, output_file):
     # Row 1: [1, 2, 3, 4, 7, 8, 9, 10]
     # Row 2: [3, 4, 5, 6, 9, 10, 11, 12]
     # Row 3: [6, 7, 8, 9, 12, 13, 14, 15]
-    # Row 4: [9, 10, 11, 12, 15, 16, 17, 18]
-    # Row 5: [12, 13, 14, 15, 18, 19, 20, 21]
-    # Row 6: [15, 16, 17, 18, 21, 22, 23, 24]
-    # Row 7: [18, 19, 20, 21, 24, 25, 26, 27]
-    # Row 8: [14, 15, 16, 17, 20, 21, 22, 23]  (special case)
+    # Row 4: [7, 8, 9, 10, 13, 14, 15, 16]
+    # Row 5: [8, 9, 10, 11, 14, 15, 16, 17]
+    # Row 6: [12, 13, 14, 15, 18, 19, 20, 21]
+    # Row 7: [13, 14, 15, 16, 19, 20, 21, 22]
+    # Row 8: [14, 15, 16, 17, 20, 21, 22, 23]
     def get_time_indices(new_row_idx):
         """Get time indices for a new row"""
         if new_row_idx == 0:
@@ -79,12 +79,20 @@ def transform_activation_file(input_file, output_file):
             start = 1
         elif new_row_idx == 2:
             start = 3
+        elif new_row_idx == 3:
+            start = 6
+        elif new_row_idx == 4:
+            start = 7
+        elif new_row_idx == 5:
+            start = 8
+        elif new_row_idx == 6:
+            start = 12
+        elif new_row_idx == 7:
+            start = 13
         elif new_row_idx == 8:
-            # Special case for row 8
             start = 14
         else:
-            # For row 3-7: start = 3 * new_row_idx - 3
-            start = 3 * new_row_idx - 3
+            start = 0  # Default case (should not happen)
         
         return [start, start+1, start+2, start+3, start+6, start+7, start+8, start+9]
     

@@ -40,7 +40,7 @@ module mac_tile (
   assign out_e  = a_q;
   assign inst_e = inst_q;
   // OS mode: when inst_q[2] (flush psum), output accumulated psum (c_q)
-  assign out_s  = ~is_os ? mac_out : inst_w[2] ? c_q : in_n;
+  assign out_s  = ~is_os ? mac_out : inst_w[2] ? c_q : act_2b_mode ? {8'b0, b1_q, b0_q} : {12'b0, b0_q};
 
   // WS mode: weight preload, OS mode: psum preload
   assign is_preload = inst_w[0] & |load_ready_q;
@@ -62,7 +62,7 @@ module mac_tile (
 
     load_ready_q_nxt = is_preload ? load_ready_q-1 : load_ready_q;
 
-    a_q_nxt = (inst_w[0] || inst_w[1]) ? in_w : a_q;
+    a_q_nxt = (inst_w[0] || inst_w[1]) ? in_w : 0;
 
     if (is_os) begin
       // When flush (inst_w[2]), don't update b to prevent receiving flushed psum
@@ -75,7 +75,7 @@ module mac_tile (
       end
       // preload psum when inst_w[0] && load_ready_q, save mac output when inst_w[1]
       // When flush (inst_w[2]), clear psum
-      c_q_nxt = inst_w[2] ? 0 : (is_preload ? in_n : (inst_w[1] ? mac_out : c_q));
+      c_q_nxt = inst_w[2] ? 0 : (is_preload ? in_n : (inst_q[1] ? mac_out : c_q));
     end
     else begin
       if (~act_2b_mode) begin

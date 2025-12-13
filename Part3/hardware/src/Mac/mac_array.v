@@ -18,7 +18,7 @@ module mac_array (clk, reset, out_s, in_w, in_n, inst_w, valid, is_os, act_2b_mo
   input                    act_2b_mode;
 
   wire [(row+1)*col*psum_bw-1:0] out_bus;
-  assign out_bus[col*psum_bw-1:0] = (is_os && ~inst_w[1]) ? {psum_bw{1'b0}} : in_n;
+  assign out_bus[col*psum_bw-1:0] = in_n;
 
   wire [inst_bw*row-1:0]      inst_bus;
   reg  [inst_bw*(row-1)-1:0]  inst_reg;
