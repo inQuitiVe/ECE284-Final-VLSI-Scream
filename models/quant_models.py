@@ -264,6 +264,7 @@ class ConvNext_quant(nn.Module):
                         bias=True,
                     ),
                     nn.BatchNorm2d(self.first_channel),
+                    nn.ReLU(),
                 ]
                 in_channels = self.first_channel
             elif x == "N":
@@ -279,6 +280,7 @@ class ConvNext_quant(nn.Module):
                             padding=1,
                             weight_bits=self.weight_bits,
                             act_bits=self.act_bits,
+                            unsigned=True,
                         ),
                     ]
                     in_channels = x
@@ -294,6 +296,7 @@ class ConvNext_quant(nn.Module):
                             padding=0,
                             weight_bits=self.weight_bits,
                             act_bits=self.act_bits,
+                            unsigned=True,
                         ),
                     ]
                     in_channels = num

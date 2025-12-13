@@ -181,7 +181,7 @@ class QuantConvNext(nn.Module):
             groups=dim,
             weight_bits=weight_bits,
             act_bits=act_bits,
-            unsigned=False,
+            unsigned=True,
         )
 
         self.pwconv = nn.Sequential(
@@ -192,15 +192,15 @@ class QuantConvNext(nn.Module):
                 hidden_factor * dim,
                 weight_bits=weight_bits,
                 act_bits=act_bits,
-                unsigned=False,
+                unsigned=True,
             ),
-            nn.LeakyReLU(),
+            nn.ReLU(),
             QuantLinear(
                 hidden_factor * dim,
                 dim,
                 weight_bits=weight_bits,
                 act_bits=act_bits,
-                unsigned=False,
+                unsigned=True,
             ),
         )
         self.gamma = (

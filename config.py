@@ -8,21 +8,21 @@ class BaseConfig:
     train_bsz: int = 128
     test_bsz: int = 500
 
-    epochs: int = 100
+    epochs: int = 60
     check_epoch: int = 5
     num_workers: int = os.cpu_count() - 2
 
-    init_lr: float = 5e-3
-    final_lr: float = 4e-4
+    init_lr: float = 6e-4
+    final_lr: float = 2e-4
 
     tile_size: int = 8
     pe_config: str = field(default="ws", metadata={"choices": ["os", "ws"]})
     model_config: str = field(
-        default="bn",
+        default="standard",
         metadata={"choices": ["bn", "standard"]},
     )
     model_name: str = field(
-        default="VGG16", metadata={"choices": ["VGG16", "ConvNext"]}
+        default="ConvNext", metadata={"choices": ["VGG16", "ConvNext"]}
     )
 
     update_steps: int = 1
@@ -30,7 +30,7 @@ class BaseConfig:
     # flat_point: float = 0.2
 
     weight_bits: int = 4
-    act_bits: int = 2
+    act_bits: int = 4
 
     def __post_init__(self):
         self.setup()

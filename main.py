@@ -374,5 +374,5 @@ class ModelTrainer:
 
 if __name__ == "__main__":
     trainer = ModelTrainer(debug=True)
-    # trainer.run()
-    trainer.extract_layer()
+    trainer.run()
+    # trainer.extract_layer()
