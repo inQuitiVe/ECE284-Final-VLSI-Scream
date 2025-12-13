@@ -187,7 +187,9 @@ initial begin
   #0.5 clk = 1'b0; readout_start = 1'b0;
   #0.5 clk = 1'b1; // Clock Pos Edge2: readout port starts output
 
-  for (i=0; i<len_onij; i=i+1) begin 
+
+  // Output is MaxPooled!
+  for (i=0; i<4; i=i+1) begin 
     #0.5 clk = 1'b0; // Clock Neg Edge
 
     out_scan_file = $fscanf(out_file,"%128b", answer); // reading from out file to answer

@@ -24,7 +24,7 @@ module SFU #(
     // state
     localparam S_Init    = 3'd0;
     localparam S_Acc     = 3'd1;
-    localparam S_SPF    = 3'd2;
+    localparam S_SPF     = 3'd2;
     localparam S_Idle    = 3'd3;
     localparam S_Readout = 3'd4;
 
@@ -58,20 +58,26 @@ module SFU #(
     // #############################
     // #     Max Pooling Layer     # 
     // #############################
-    wire [3:0]  MPL_access_onij;
-    wire [1:0]  MPL_onij;
-    
-    mpl_onij_calculator mpl_onij_calculator_instance(
-        .order(o_nij), .o_nij(MPL_access_onij), .mpl_onij(MPL_onij)
+    wire [3:0]  MPL_in_addr;
+    wire [1:0]  MPL_out_addr;
+    wire MPL_valid;
+    wire [psum_bw*col-1:0] MPL_cal_out;
+
+    mpl_onij_calculator #(.psum_bw(psum_bw), .col(col)) mpl_onij_calculator_instance(
+        .clk(clk), 
+        .reset(reset), 
+        .enable((state==S_SPF)&&ren_pmem_D1),
+        .in(Q_pmem),
+        .order(o_nij), 
+        .o_nij(MPL_in_addr), 
+        .mpl_onij(MPL_out_addr),
+        .MPL_valid(MPL_valid),
+        .out(MPL_cal_out)
     );
 
-    max4#(.bw(psum_bw)) max4_instance(
-        .clk(clk),
-        .reset(reset),
-        .in(Q_pmem[15:0]),
-        .take_MPL(~|o_nij[1:0]),
-        .out()
-    );
+    // debug wire
+    wire [psum_bw-1:0] readout_och7 = readout[127:112];
+    wire [psum_bw-1:0] DMEM_och7 = D_pmem[127:112];
 
 
 
@@ -80,10 +86,14 @@ module SFU #(
     
     assign readout = Q_pmem;
     assign r_A_pmem = (state==S_Acc && cal_acc) ? cal_o_nij :
-                      (state==S_SPF || state==S_Readout) ? o_nij : 4'd0;
+                      (state==S_SPF)            ? MPL_in_addr :
+                      (state==S_Readout) ? o_nij : 4'd0;
+                      
     assign ren_pmem = (state==S_Acc && cal_acc || state==S_SPF || state==S_Readout) && (~flush_cycle);
-    assign w_A_pmem = (state==S_Acc || state==S_SPF) ? r_A_pmem_D1 : 4'd0;
-    assign wen_pmem = (state==S_Acc || state==S_SPF) ? ren_pmem_D1 : 1'b0;
+    assign w_A_pmem = (state==S_Acc) ? r_A_pmem_D1 :
+                      (state==S_SPF) ? MPL_out_addr: 4'd0;
+    assign wen_pmem = (state==S_Acc) ? ren_pmem_D1 :
+                      (state==S_SPF) ? MPL_valid   : 1'b0;
     
 
     wire [psum_bw-1 : 0]  ReLU_out [col-1 : 0];
@@ -91,7 +101,7 @@ module SFU #(
     generate
         for(i=0; i<col; i=i+1)begin: col_num
             ReLU#(.psum_bw(psum_bw)) ReLU_instance(
-                .in(Q_pmem[(i+1)*psum_bw-1 : i*psum_bw]),
+                .in(MPL_cal_out[(i+1)*psum_bw-1 : i*psum_bw]),
                 .out(ReLU_out[i])
             );
         end
@@ -99,7 +109,7 @@ module SFU #(
 
     generate
         for(i=0; i<col; i=i+1)begin
-            assign D_pmem[(i+1)*psum_bw-1 : i*psum_bw] = (state==S_SPF) ? ReLU_out[i] :
+            assign D_pmem[(i+1)*psum_bw-1 : i*psum_bw] = (state==S_SPF) ? ReLU_out[i]:
                                                          (state==S_Acc && kij==4'd0)  ?  ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw] : (Q_pmem[(i+1)*psum_bw-1 : i*psum_bw]+ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw]);
         end
     endgenerate
@@ -165,7 +175,7 @@ module SFU #(
                     state_nxt = S_Idle;
                 end
                 else begin
-                    if(o_nij == 4'd15)begin
+                    if(o_nij == 4'd3)begin
                         o_nij_nxt = 4'd0;
                         flush_cycle_nxt = 1'b1;
                         state_nxt = S_Readout;
