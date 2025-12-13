@@ -1,0 +1,2 @@
+src/decoder_tb.v
+src/huffman_decoder.v
