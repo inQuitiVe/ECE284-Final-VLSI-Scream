@@ -50,7 +50,7 @@
 
 1. For ConvNext Model
 
-- It achieves an accuracy of **89.70%**
+- It achieves an accuracy of **89.70%** (84.88 for now, I lost the previous best model, now I don't know how to configure it)
 
 # TODO
 

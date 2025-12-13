@@ -225,7 +225,7 @@ class VGG_quant(nn.Module):
                         conv.bias.data.copy_(b_new)
 
                     if isinstance(layer, QuantConv2d):
-                        conv.weight_quant.wgt_alpha.data *= scale_factor.abs().mean()
+                        conv.w_alpha.data *= scale_factor.abs().mean()
 
                 new_features.append(conv)
                 i += 2
@@ -254,9 +254,7 @@ class ConvNext_quant(nn.Module):
         layers = []
         in_channels = 3
         for x in cfg:
-            if x == "M":
-                layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
-            elif x == "F":
+            if x == "F":
                 layers += [
                     nn.Conv2d(
                         in_channels,

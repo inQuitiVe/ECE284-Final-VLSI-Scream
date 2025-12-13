@@ -1,16 +1,18 @@
 import torch.nn as nn
 import torch
 import torch.nn.functional as F
-from torch.nn.parameter import Parameter
 
 
-def weight_quantization(b):
+def signed_quantization(b, training=True):
     def uniform_quant(x, b):
-        xdiv = x.mul((2**b - 1))
-        xhard = xdiv.round().div(2**b - 1)
-        return xhard
+        return x.mul(2**b - 1).round().div(2**b - 1)
 
-    class _pq(torch.autograd.Function):
+    def int_quant(x, alpha):  # Only Used during inference
+        x_c = x.div_(alpha).clamp(min=-1, max=1)
+        sign = x_c.sign()
+        return sign * x_c.abs().mul(2**b - 1).round()
+
+    class _pass_through_quantization(torch.autograd.Function):
         @staticmethod
         def forward(ctx, input, alpha):
             input.div_(alpha)
@@ -28,37 +30,22 @@ def weight_quantization(b):
             input, input_q = ctx.saved_tensors
             i = (input.abs() > 1.0).float()
             sign = input.sign()
-            # grad_alpha = (grad_output * (sign * i + (input_q - input) * (1 - i))).sum()
-            grad_alpha = (grad_output * sign * i).sum()
+            grad_alpha = (grad_output * (sign * i + (input_q - input) * (1 - i))).sum()
+            # grad_alpha = (grad_output * sign * i).sum() # Lower Accuracy
             grad_input = grad_input * (1 - i)
             return grad_input, grad_alpha
 
-    return _pq().apply
+    return _pass_through_quantization().apply if training else int_quant
 
 
-class weight_quantize_fn(nn.Module):
-    def __init__(self, w_bit):
-        super(weight_quantize_fn, self).__init__()
-        self.w_bit = w_bit - 1
-        self.weight_q = weight_quantization(b=self.w_bit)
-        self.wgt_alpha = nn.Parameter(torch.tensor(3.0))
+def unsigned_quantization(b, training=True):
+    def uniform_quant(x, b):
+        return x.mul(2**b - 1).round().div(2**b - 1)
 
-    def forward(self, weight):
-        mean = weight.data.mean()
-        std = weight.data.std()
-        weight = weight.add(-mean).div(std)  # weights normalization
-        weight_q = self.weight_q(weight, self.wgt_alpha)
+    def int_quant(x, alpha):  # Only Used during inference
+        return x.div_(alpha).clamp(max=1).mul(2**b - 1).round()
 
-        return weight_q
-
-
-def act_quantization(b):
-    def uniform_quant(x, b=4):
-        xdiv = x.mul(2**b - 1)
-        xhard = xdiv.round().div(2**b - 1)
-        return xhard
-
-    class _uq(torch.autograd.Function):
+    class _unsigned_quantization(torch.autograd.Function):
         @staticmethod
         def forward(ctx, input, alpha):
             input = input.div(alpha)
@@ -73,12 +60,27 @@ def act_quantization(b):
             grad_input = grad_output.clone()
             input, input_q = ctx.saved_tensors
             i = (input > 1.0).float()
-            # grad_alpha = (grad_output * (i + (input_q - input) * (1 - i))).sum()
-            grad_alpha = (grad_output * i).sum()
+            grad_alpha = (grad_output * (i + (input_q - input) * (1 - i))).sum()
+            # grad_alpha = (grad_output * i).sum()
             grad_input = grad_input * (1 - i)
             return grad_input, grad_alpha
 
-    return _uq().apply
+    return _unsigned_quantization().apply if training else int_quant
+
+
+class weight_quantize_fn(nn.Module):
+    def __init__(self, w_bit, training=True):
+        super(weight_quantize_fn, self).__init__()
+        self.w_bit = w_bit - 1
+        self.weight_q = signed_quantization(self.w_bit, training)
+
+    def forward(self, weight, w_alpha):
+        mean = weight.data.mean()
+        std = weight.data.std()
+        weight = weight.add(-mean).div(std)  # weights normalization
+        weight_q = self.weight_q(weight, w_alpha)
+
+        return weight_q
 
 
 class QuantConv2d(nn.Conv2d):
@@ -94,7 +96,7 @@ class QuantConv2d(nn.Conv2d):
         bias=False,
         weight_bits=4,
         act_bits=4,
-        is_positive=True,
+        unsigned=True,
     ):
         super(QuantConv2d, self).__init__(
             in_channels,
@@ -107,34 +109,23 @@ class QuantConv2d(nn.Conv2d):
             bias,
         )
         self.weight_quant = weight_quantize_fn(w_bit=weight_bits)
-        if is_positive:
-            self.act_quant = act_quantization(act_bits)
+        if unsigned:
+            self.act_quant = unsigned_quantization(act_bits)
         else:
-            self.act_quant = weight_quantization(act_bits)
+            self.act_quant = signed_quantization(act_bits - 1)
 
         self.act_alpha = nn.Parameter(torch.tensor(8.0))
-        self.weight_q = nn.Parameter(
-            torch.zeros(out_channels, in_channels // groups, kernel_size, kernel_size)
-        )
+        self.w_alpha = nn.Parameter(torch.tensor(3.0))
 
     def forward(self, x):
         return F.conv2d(
             self.act_quant(x, self.act_alpha),
-            self.weight_quant(self.weight),
+            self.weight_quant(self.weight, self.w_alpha),
             self.bias,
             self.stride,
             self.padding,
             self.dilation,
             self.groups,
-        )
-
-    def show_params(self):
-        wgt_alpha = round(self.weight_quant.wgt_alpha.data.item(), 3)
-        act_alpha = round(self.act_alpha.data.item(), 3)
-        print(
-            "clipping threshold weight alpha: {:2f}, activation alpha: {:2f}".format(
-                wgt_alpha, act_alpha
-            )
         )
 
 
@@ -146,7 +137,7 @@ class QuantLinear(nn.Linear):
         bias=False,
         weight_bits=4,
         act_bits=4,
-        is_positive=True,
+        unsigned=True,
     ):
         super(QuantLinear, self).__init__(
             in_features,
@@ -155,28 +146,19 @@ class QuantLinear(nn.Linear):
         )
         self.weight_quant = weight_quantize_fn(w_bit=weight_bits)
 
-        if is_positive:
-            self.act_quant = act_quantization(act_bits)
+        if unsigned:
+            self.act_quant = unsigned_quantization(act_bits)
         else:
-            self.act_quant = weight_quantization(act_bits)
+            self.act_quant = signed_quantization(act_bits - 1)
 
         self.act_alpha = nn.Parameter(torch.tensor(8.0))
-        self.weight_q = nn.Parameter(torch.zeros(out_features, in_features))
+        self.w_alpha = nn.Parameter(torch.tensor(3.0))
 
     def forward(self, x):
         return F.linear(
             input=self.act_quant(x, self.act_alpha),
-            weight=self.weight_quant(self.weight),
+            weight=self.weight_quant(self.weight, self.w_alpha),
             bias=self.bias,
-        )
-
-    def show_params(self):
-        wgt_alpha = round(self.weight_quant.wgt_alpha.data.item(), 3)
-        act_alpha = round(self.act_alpha.data.item(), 3)
-        print(
-            "clipping threshold weight alpha: {:2f}, activation alpha: {:2f}".format(
-                wgt_alpha, act_alpha
-            )
         )
 
 
@@ -199,7 +181,7 @@ class QuantConvNext(nn.Module):
             groups=dim,
             weight_bits=weight_bits,
             act_bits=act_bits,
-            is_positive=False,
+            unsigned=False,
         )
 
         self.pwconv = nn.Sequential(
@@ -210,7 +192,7 @@ class QuantConvNext(nn.Module):
                 hidden_factor * dim,
                 weight_bits=weight_bits,
                 act_bits=act_bits,
-                is_positive=False,
+                unsigned=False,
             ),
             nn.LeakyReLU(),
             QuantLinear(
@@ -218,7 +200,7 @@ class QuantConvNext(nn.Module):
                 dim,
                 weight_bits=weight_bits,
                 act_bits=act_bits,
-                is_positive=False,
+                unsigned=False,
             ),
         )
         self.gamma = (

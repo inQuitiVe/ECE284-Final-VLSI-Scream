@@ -30,7 +30,7 @@ class BaseConfig:
     # flat_point: float = 0.2
 
     weight_bits: int = 4
-    act_bits: int = 4
+    act_bits: int = 2
 
     def __post_init__(self):
         self.setup()
@@ -54,7 +54,7 @@ class BaseConfig:
         if self.model_name == "VGG16":
             self.layer_num = 27
         elif self.model_name == "ConvNext":
-            self.layer_num = 10
+            self.layer_num = 11
 
         # Select Model Names
         self.model_save_name = (

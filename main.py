@@ -18,14 +18,21 @@ class ModelTrainer:
     """
 
     def __init__(self, debug=True, fuse_model=False):
-        model = VGG_quant(
-            model_name=bargs.model_name,
-            model_config=bargs.model_config,
-            weight_bits=bargs.weight_bits,
-            act_bits=bargs.act_bits,
-        ).to(bargs.device)
+        if "VGG" in bargs.model_name:
+            model = VGG_quant(
+                model_name=bargs.model_name,
+                model_config=bargs.model_config,
+                weight_bits=bargs.weight_bits,
+                act_bits=bargs.act_bits,
+            ).to(bargs.device)
+        else:
+            model = ConvNext_quant(
+                model_name=bargs.model_name,
+                weight_bits=bargs.weight_bits,
+                act_bits=bargs.act_bits,
+            ).to(bargs.device)
 
-        model_path = "./path/" + bargs.model_save_name + ".pth"
+        model_path = f"./path/{bargs.model_save_name}.pth"
         if os.path.exists(model_path):
             model.load_state_dict(
                 torch.load(
@@ -84,7 +91,7 @@ class ModelTrainer:
             self.scheduler.step()
 
     def validate(self, epoch, model):
-        self.model.eval()
+        model.eval()
         correct_count = 0
         total_count = 0
 
@@ -92,7 +99,7 @@ class ModelTrainer:
             for test_input, test_target in self.test_loader:
                 test_input = test_input.to(bargs.device)
                 test_target = test_target.to(bargs.device)
-                test_output = self.model(test_input)
+                test_output = model(test_input)
                 preds = test_output.argmax(dim=1)
                 correct_count += (preds == test_target).sum().item()
                 total_count += test_target.size(0)
@@ -101,25 +108,25 @@ class ModelTrainer:
 
         if accuracy > self.best_accuracy:
             torch.save(
-                self.model.state_dict(),
-                f"./path/" + bargs.model_save_name + f".pth",
+                model.state_dict(),
+                f"./path/{bargs.model_save_name}{accuracy * 100: .0f}.pth",
             )
             self.best_accuracy = accuracy
 
         print(f"Epoch {epoch}, Accuracy: {accuracy:.2f}%")
 
-    def extract_layer(self, layer_num=27, w_bit=4, act_bit=4):
-        print(f"Extracting data from Layer {layer_num}...")
+    def extract_layer(self):
+        print(f"Extracting data from Layer {bargs.layer_num}...")
 
         # Only take 1st image of the batch
-        conv_layer = self.model.features[layer_num]
+        conv_layer = self.model.features[bargs.layer_num]
 
         captured = {}
-        h_conv = self.model.features[layer_num].register_forward_pre_hook(
-            lambda m, i: captured.update({"conv": i[0].detach()})
+        h_conv = self.model.features[bargs.layer_num].register_forward_pre_hook(
+            lambda m, i: captured.update({"conv_input": i[0].detach()})
         )
-        h_relu = self.model.features[layer_num + 2].register_forward_pre_hook(
-            lambda m, i: captured.update({"relu": i[0].detach()})
+        h_relu = self.model.features[bargs.layer_num + 2].register_forward_pre_hook(
+            lambda m, i: captured.update({"relu_output": i[0].detach()})
         )
 
         self.model.eval()
@@ -130,19 +137,16 @@ class ModelTrainer:
         h_relu.remove()
 
         # Quantization
-        w_alpha = conv_layer.weight_quant.wgt_alpha
-        w_scale = w_alpha / (2 ** (w_bit - 1) - 1)
-        weight_int = torch.round(conv_layer.weight_q / w_scale)
-        input_float = captured["conv"][0]
-
-        act_alpha = conv_layer.act_alpha
-        a_scale = act_alpha / (2**act_bit - 1)
-        act_quant_fn = act_quantization(act_bit)
-        act_int = torch.round(act_quant_fn(input_float, act_alpha) / a_scale).unsqueeze(
-            0
+        weight_int = weight_quantize_fn(bargs.weight_bits, training=False)(
+            conv_layer.weight, conv_layer.w_alpha
         )
+        input_float = captured["conv_input"][0]  # (c,h,w)
+        act_int = unsigned_quantization(bargs.act_bits, training=False)(
+            input_float, conv_layer.act_alpha
+        ).unsqueeze(0)
 
-        # Conv
+        # Different Outputs
+        output_quant = captured["relu_output"][0]
         output_int = F.relu_(
             F.conv2d(
                 act_int,
@@ -151,7 +155,6 @@ class ModelTrainer:
                 padding=conv_layer.padding,
             )
         ).squeeze(0)
-
         output_ref = F.relu_(
             F.conv2d(
                 input_float,
@@ -163,44 +166,64 @@ class ModelTrainer:
 
         # Save Files
         if bargs.pe_config == "ws":
-            for i in range(bargs.tile_image_size):
+            act_tile = rearrange(
+                F.pad(act_int, pad=(1, 1, 1, 1), value=0),
+                "1 (th ts) h w -> th ts (h w)",
+                th=bargs.tile_image_size,
+                ts=bargs.tile_size,
+            )  # (cin/t, t, hw)
+            w_tile = rearrange(
+                weight_int,
+                "(th tsh) (tw tsw) h w -> tw th tsh tsw (h w)",
+                tsh=bargs.tile_size,
+                tsw=bargs.tile_size,
+            )  # (cin/t, cout/t, t, t, k^2)
+
+            psum = torch.einsum(
+                "abpqk, apn -> abpnk", w_tile, act_tile
+            )  # (cin/t, cout/t, t, hw, k^2)
+            for cin_tile in range(bargs.tile_image_size):
                 self._save_file(
-                    data=rearrange(
-                        F.pad(act_int, pad=(1, 1, 1, 1), value=0),
-                        "1 (th ts) h w -> th ts (h w)",
-                        th=bargs.tile_image_size,
-                        ts=bargs.tile_size,
-                    )[i],
+                    data=act_tile[cin_tile],  # (t, (h+2p)(w+2p))
                     filename="./Files/"
-                    + str(act_bit)
+                    + str(bargs.act_bits)
                     + "bit/"
                     + bargs.pe_config
                     + "/activation_tile"
-                    + str(i)
+                    + str(cin_tile)
                     + ".txt",
-                    bits=act_bit,
+                    bits=bargs.act_bits,
                 )
-
-            for i in range(bargs.tile_image_size**2):
-                for j in range(9):
-                    self._save_file(
-                        data=rearrange(
-                            weight_int,
-                            "(th tsh) (tw tsw) h w -> (tw th) tsh tsw (h w)",
-                            tsh=bargs.tile_size,
-                            tsw=bargs.tile_size,
-                        )[i, :, :, j],
-                        filename="./Files/"
-                        + str(act_bit)
-                        + "bit/"
-                        + bargs.pe_config
-                        + "/weight_tile_"
-                        + str(i)
-                        + "_kij_"
-                        + str(j)
-                        + ".txt",
-                        bits=w_bit,
-                    )
+                for cout_tile in range(bargs.tile_image_size):
+                    for kij in range(9):
+                        self._save_file(
+                            data=w_tile[cin_tile, cout_tile, :, :, kij],  # (t,t)
+                            filename="./Files/"
+                            + str(bargs.act_bits)
+                            + "bit/"
+                            + bargs.pe_config
+                            + "/weight_tile_"
+                            + str(cin_tile * bargs.tile_image_size + cout_tile)
+                            + "_kij_"
+                            + str(kij)
+                            + ".txt",
+                            bits=bargs.weight_bits,
+                        )
+                        self._save_file(
+                            data=psum[
+                                cin_tile, cout_tile, :, :, kij
+                            ],  # [t, (h+2p)(w+2p)]
+                            filename="./Files/"
+                            + str(bargs.act_bits)
+                            + "bit/"
+                            + bargs.pe_config
+                            + "/psum_"
+                            + str(cin_tile * bargs.tile_image_size + cout_tile)
+                            + "_kij_"
+                            + str(kij)
+                            + ".txt",
+                            bits=bargs.weight_bits,
+                        )
 
         elif bargs.pe_config == "os":
             act_padded = F.pad(act_int, (1, 1, 1, 1))
@@ -215,7 +238,7 @@ class ModelTrainer:
                         ].reshape(bargs.tile_size, -1),
                         filename=(
                             "./Files/"
-                            + str(act_bit)
+                            + str(bargs.act_bits)
                             + "bit/"
                             + bargs.pe_config
                             + "/channel_group_"
@@ -223,7 +246,7 @@ class ModelTrainer:
                             + ("_upper" if j == 0 else "_lower")
                             + ".txt"
                         ),
-                        bits=act_bit,
+                        bits=bargs.act_bits,
                     )
 
                 reshaped_weight = rearrange(
@@ -237,7 +260,7 @@ class ModelTrainer:
                         self._save_file(
                             data=reshaped_weight[tn, i, kij, :, :].reshape(8, -1),
                             filename="./Files/"
-                            + str(act_bit)
+                            + str(bargs.act_bits)
                             + "bit/"
                             + bargs.pe_config
                             + "/weight_channel_group_"
@@ -247,7 +270,7 @@ class ModelTrainer:
                             + "_tile_"
                             + str(tn)
                             + ".txt",
-                            bits=w_bit,
+                            bits=bargs.weight_bits,
                         )
 
         for i in range(bargs.tile_image_size):
@@ -255,12 +278,16 @@ class ModelTrainer:
                 data=rearrange(
                     output_int, "(tn ts) h w -> tn ts (h w)", ts=bargs.tile_size
                 )[i],
-                filename="./Files/" + str(act_bit) + "bit/output_" + str(i) + ".txt",
+                filename="./Files/"
+                + str(bargs.act_bits)
+                + "bit/output_"
+                + str(i)
+                + ".txt",
                 bits=16,
             )
 
             if "bn" in bargs.model_config:
-                bn = self.model.features[layer_num + 1]
+                bn = self.model.features[bargs.layer_num + 1]
                 mu = bn.running_mean.reshape(bargs.tile_size, -1).to(torch.float16)
                 sigma = (
                     torch.sqrt(bn.running_var + bn.eps)
@@ -272,13 +299,17 @@ class ModelTrainer:
 
                 self._save_file(
                     data=mu[:, i].unsqueeze(-1).unsqueeze(-1),
-                    filename="./Files/" + str(act_bit) + "bit/bn_mu_" + str(i) + ".txt",
+                    filename="./Files/"
+                    + str(bargs.act_bits)
+                    + "bit/bn_mu_"
+                    + str(i)
+                    + ".txt",
                     bits=16,
                 )
                 self._save_file(
                     data=sigma[:, i].unsqueeze(-1),
                     filename="./Files/"
-                    + str(act_bit)
+                    + str(bargs.act_bits)
                     + "bit/bn_sigma_"
                     + str(i)
                     + ".txt",
@@ -287,7 +318,7 @@ class ModelTrainer:
                 self._save_file(
                     data=gamma[:, i].unsqueeze(-1),
                     filename="./Files/"
-                    + str(act_bit)
+                    + str(bargs.act_bits)
                     + "bit/bn_gamma_"
                     + str(i)
                     + ".txt",
@@ -296,7 +327,7 @@ class ModelTrainer:
                 self._save_file(
                     data=beta[:, i].unsqueeze(-1),
                     filename="./Files/"
-                    + str(act_bit)
+                    + str(bargs.act_bits)
                     + "bit/bn_beta_"
                     + str(i)
                     + ".txt",
@@ -304,10 +335,22 @@ class ModelTrainer:
                 )
 
         # Error Calculation
-        error = (captured["relu"][0] - output_ref).abs().mean()
-        print(f"Difference between quantized and floating version: {error.item():.6f}")
+        total_scale = (
+            conv_layer.w_alpha
+            * conv_layer.act_alpha
+            / (2 ** (bargs.weight_bits - 1) - 1)
+            / (2**bargs.act_bits - 1)
+        )
+        training_error = (output_quant - output_ref).abs().mean()
+        quant_error = (output_quant - output_int * total_scale).abs().mean()
+        print(
+            f"Training Error: {training_error:.6f},    Quant Error: {quant_error:.6f}"
+        )
 
     def _save_file(self, data, filename, bits):
+        """r
+        data: (tile_size, -1)
+        """
         os.makedirs(os.path.dirname(filename), exist_ok=True)
 
         file = open(filename, "w")
@@ -332,6 +375,4 @@ class ModelTrainer:
 if __name__ == "__main__":
     trainer = ModelTrainer(debug=True)
     # trainer.run()
-    trainer.extract_layer(
-        layer_num=bargs.layer_num, w_bit=bargs.weight_bits, act_bit=bargs.act_bits
-    )
+    trainer.extract_layer()
