@@ -18,7 +18,7 @@ module mac_array (clk, reset, out_s, in_w, in_n, inst_w, valid, is_os, act_2b_mo
   input                    act_2b_mode;
 
   wire [(row+1)*col*psum_bw-1:0] out_bus;
-  assign out_bus[col*psum_bw-1:0] = in_n;
+  assign out_bus[col*psum_bw-1:0] = (is_os && ~inst_w[1]) ? {psum_bw{1'b0}} : in_n;
 
   wire [inst_bw*row-1:0]      inst_bus;
   reg  [inst_bw*(row-1)-1:0]  inst_reg;
@@ -64,16 +64,17 @@ module mac_array (clk, reset, out_s, in_w, in_n, inst_w, valid, is_os, act_2b_mo
     for (j=0; j < col; j=j+1) begin : col_merge
       // Flatten 2D array: col_psum from all rows in this column (after mask)
       wire [psum_bw*row-1:0] col_psum_flat;
+      wire [inst_bw*row-1:0] row_k_inst;
       
       for (k=0; k < row; k=k+1) begin : row_collect
-        wire [inst_bw-1:0] row_k_inst;
-        assign row_j_inst = inst_bus[(j+1)*inst_bw-1:j*inst_bw];
-
+        
+        assign row_k_inst[k*inst_bw+:inst_bw] = inst_bus[(k+1)*inst_bw-1:k*inst_bw];
+        
         wire [psum_bw-1:0] row_k_col_j_psum;
-        assign row_k_col_j_psum = out_bus[k*col*psum_bw+psum_bw*(j+1)-1:k*col*psum_bw+psum_bw*j];
+        assign row_k_col_j_psum = out_bus[(k+1)*col*psum_bw+psum_bw*j+:psum_bw];
         
         // Mask: if inst[2] (flush psum) is set, use the psum, otherwise 0
-        assign col_psum_flat[psum_bw*(k+1)-1:psum_bw*k] = row_k_inst[2] ? row_k_col_j_psum : {psum_bw{1'b0}};
+        assign col_psum_flat[psum_bw*(k+1)-1:psum_bw*k] = row_k_inst[k*inst_bw+2] ? row_k_col_j_psum : {psum_bw{1'b0}};
       end
       
       // OR all masked psums from all rows (flatten tree)
@@ -89,12 +90,12 @@ module mac_array (clk, reset, out_s, in_w, in_n, inst_w, valid, is_os, act_2b_mo
       end
       
       // Output: use OR result in OS mode, otherwise use last row output
-      // Last row (row-1) output for column j is at out_bus[(row-1)*col*psum_bw+psum_bw*(j+1)-1:(row-1)*col*psum_bw+psum_bw*j]
+      // Last row (row) output for column j is at out_bus[row*col*psum_bw+psum_bw*(j+1)-1:row*col*psum_bw+psum_bw*j]
       wire [psum_bw-1:0] last_row_col_j_psum;
-      assign last_row_col_j_psum = out_bus[row*col*psum_bw+psum_bw*j+:psum_bw];
-      
-      assign out_s[psum_bw*(j+1)-1:psum_bw*j] = is_os ? or_result_flat[psum_bw*row-1:psum_bw*(row-1)] : 
-                                                         last_row_col_j_psum;
+      assign last_row_col_j_psum = out_bus[row*col*psum_bw+psum_bw*(j+1)-1:row*col*psum_bw+psum_bw*j];
+
+      wire [psum_bw-1:0] partial_out_s = is_os ? or_result_flat[psum_bw*row-1:psum_bw*(row-1)] : last_row_col_j_psum;      
+      assign out_s[psum_bw*(j+1)-1:psum_bw*j] = partial_out_s;
     end
   endgenerate
   

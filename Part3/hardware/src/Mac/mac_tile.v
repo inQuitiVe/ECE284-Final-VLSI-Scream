@@ -40,7 +40,7 @@ module mac_tile (
   assign out_e  = a_q;
   assign inst_e = inst_q;
   // OS mode: when inst_q[2] (flush psum), output accumulated psum (c_q)
-  assign out_s  = ~is_os ? mac_out : inst_q[2] ? c_q : in_n;
+  assign out_s  = ~is_os ? mac_out : inst_w[2] ? c_q : in_n;
 
   // WS mode: weight preload, OS mode: psum preload
   assign is_preload = inst_w[0] & |load_ready_q;
