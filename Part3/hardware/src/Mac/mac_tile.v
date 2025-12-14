@@ -68,10 +68,10 @@ module mac_tile (
       // When flush (inst_w[2]), don't update b to prevent receiving flushed psum
       b0_q_nxt = (inst_w[2] == 0 && (inst_w[0] || inst_w[1])) ? in_n[bw-1:0] : b0_q;
       if (act_2b_mode) begin
-        b1_q_nxt = (inst_w[2] == 0 && (inst_w[0] || inst_w[1])) ? in_n[bw-1:0] : b1_q;
+        b1_q_nxt = (inst_w[2] == 0 && (inst_w[0] || inst_w[1])) ? in_n[2*bw-1:bw] : b1_q;
       end
       else begin
-        b1_q_nxt = (inst_w[2] == 0 && (inst_w[0] || inst_w[1])) ? in_n[2*bw-1:0] : b1_q;
+        b1_q_nxt = (inst_w[2] == 0 && (inst_w[0] || inst_w[1])) ? in_n[bw-1:0] : b1_q;
       end
       // preload psum when inst_w[0] && load_ready_q, save mac output when inst_w[1]
       // When flush (inst_w[2]), clear psum
