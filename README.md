@@ -50,4 +50,12 @@
 
 1. For ConvNext Model
 
-- It achieves an accuracy of **89.70%** (88.36)
+- It achieves an accuracy of **88.90** (Now 88.36% since the previous model was lost during the Google Drive Update unfortunately!!!)
+
+# How to validate the model
+
+- Just change the parameter `act_bit`(4 or 2), `pe_config`(`os` or `ws`), `model_config` (`standard` or `bn`), `model_name` (`ConvNext` or `VGG16`) in the `config.py` file to set all kinds of configurations
+
+- Current config validates ConvNext
+
+- Just run `python main.py` and change the config as mentioned above to get different results

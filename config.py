@@ -12,8 +12,8 @@ class BaseConfig:
     check_epoch: int = 5
     num_workers: int = os.cpu_count() - 2
 
-    init_lr: float = 6e-4
-    final_lr: float = 2e-4
+    init_lr: float = 5e-4
+    final_lr: float = 4e-4
 
     tile_size: int = 8
     pe_config: str = field(default="ws", metadata={"choices": ["os", "ws"]})
@@ -22,7 +22,7 @@ class BaseConfig:
         metadata={"choices": ["bn", "standard"]},
     )
     model_name: str = field(
-        default="ConvNext", metadata={"choices": ["VGG16", "ConvNext"]}
+        default="VGG16", metadata={"choices": ["VGG16", "ConvNext"]}
     )
 
     update_steps: int = 1

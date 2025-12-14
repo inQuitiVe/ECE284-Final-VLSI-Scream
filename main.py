@@ -17,7 +17,7 @@ class ModelTrainer:
     Extract a certain quantized layer into a specific format
     """
 
-    def __init__(self, debug=True, fuse_model=False):
+    def __init__(self, debug=True):
         if "VGG" in bargs.model_name:
             model = VGG_quant(
                 model_name=bargs.model_name,
@@ -62,9 +62,6 @@ class ModelTrainer:
             self.optimizer, T_max=bargs.epochs, eta_min=bargs.final_lr
         )
 
-        if fuse_model:
-            self.validate(0, model.fuse_model())
-
     def run(self):
         for epoch in range(1, bargs.epochs + 1):
             self.model.train()
@@ -90,8 +87,8 @@ class ModelTrainer:
 
             self.scheduler.step()
 
-    def validate(self, epoch, model):
-        model.eval()
+    def validate(self, epoch):
+        self.model.eval()
         correct_count = 0
         total_count = 0
 
@@ -99,7 +96,7 @@ class ModelTrainer:
             for test_input, test_target in self.test_loader:
                 test_input = test_input.to(bargs.device)
                 test_target = test_target.to(bargs.device)
-                test_output = model(test_input)
+                test_output = self.model(test_input)
                 preds = test_output.argmax(dim=1)
                 correct_count += (preds == test_target).sum().item()
                 total_count += test_target.size(0)
@@ -108,7 +105,7 @@ class ModelTrainer:
 
         if accuracy > self.best_accuracy:
             torch.save(
-                model.state_dict(),
+                self.model.state_dict(),
                 f"./path/{bargs.model_save_name}{accuracy * 100: .0f}.pth",
             )
             self.best_accuracy = accuracy
@@ -374,5 +371,6 @@ class ModelTrainer:
 
 if __name__ == "__main__":
     trainer = ModelTrainer(debug=True)
-    trainer.run()
+    trainer.validate(0)
+    # trainer.run()
     # trainer.extract_layer()
