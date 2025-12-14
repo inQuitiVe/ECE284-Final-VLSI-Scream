@@ -1,4 +1,4 @@
-module mpl_onij_calculator #(
+module MPL2D #(
     parameter psum_bw  = 16,
     parameter col      = 8
 )(

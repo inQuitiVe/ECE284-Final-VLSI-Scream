@@ -63,7 +63,7 @@ module SFU #(
     wire MPL_valid;
     wire [psum_bw*col-1:0] MPL_cal_out;
 
-    mpl_onij_calculator #(.psum_bw(psum_bw), .col(col)) mpl_onij_calculator_instance(
+    MPL2D #(.psum_bw(psum_bw), .col(col)) MPL2D_instance(
         .clk(clk), 
         .reset(reset), 
         .enable((state==S_SPF)&&ren_pmem_D1),
