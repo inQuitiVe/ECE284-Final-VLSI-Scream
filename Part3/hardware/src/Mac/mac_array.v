@@ -20,18 +20,18 @@ module mac_array (clk, reset, out_s, in_w, in_n, inst_w, valid, is_os, act_2b_mo
   wire [(row+1)*col*psum_bw-1:0] out_bus;
   assign out_bus[col*psum_bw-1:0] = in_n;
 
-  wire [inst_bw*row-1:0]      inst_bus;
-  reg  [inst_bw*(row-1)-1:0]  inst_reg;
+  wire [inst_bw*(row+col+1)-1:0]      inst_bus;
+  reg  [inst_bw*(row+col)-1:0]  inst_reg;
   assign inst_bus = {inst_reg, inst_w};
 
 
   // inst_w flows to row0 to row7
   always @ (posedge clk) begin
     if (reset) begin
-      inst_reg <= {(inst_bw*(row-1)){1'b0}};
+      inst_reg <= {(inst_bw*(row+col)){1'b0}};
     end
     else begin
-      inst_reg <= inst_bus[inst_bw*(row-1)-1:0];
+      inst_reg <= inst_bus[inst_bw*(row+col)-1:0];
     end
   end
 
@@ -68,10 +68,12 @@ module mac_array (clk, reset, out_s, in_w, in_n, inst_w, valid, is_os, act_2b_mo
       
       for (k=0; k < row; k=k+1) begin : row_collect
         
-        assign row_k_inst[k*inst_bw+:inst_bw] = inst_bus[(k+1)*inst_bw-1:k*inst_bw];
+        assign row_k_inst[k*inst_bw+:inst_bw] = inst_bus[(j+k+1)*inst_bw+:inst_bw];
         
         wire [psum_bw-1:0] row_k_col_j_psum;
+        wire [psum_bw*col-1:0] partial_out_bus = out_bus[(k+1)*col*psum_bw+:psum_bw*col];
         assign row_k_col_j_psum = out_bus[(k+1)*col*psum_bw+psum_bw*j+:psum_bw];
+
         
         // Mask: if inst[2] (flush psum) is set, use the psum, otherwise 0
         assign col_psum_flat[psum_bw*(k+1)-1:psum_bw*k] = row_k_inst[k*inst_bw+2] ? row_k_col_j_psum : {psum_bw{1'b0}};

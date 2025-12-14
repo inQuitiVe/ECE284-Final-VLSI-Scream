@@ -19,7 +19,7 @@ def transform_activation_file(input_file, output_file):
                    Pattern for new rows:
                    - row 0: time [0,1,2,3, 6,7,8,9] (MSB to LSB)
                    - row 1: time [1,2,3,4, 7,8,9,10]
-                   - row 2: time [3,4,5,6, 9,10,11,12]
+                   - row 2: time [2,3,4,5, 8,9,10,11]
                    - row 3: time [6,7,8,9, 12,13,14,15]
                    - row 4: time [7,8,9,10, 13,14,15,16]
                    - row 5: time [8,9,10,11, 14,15,16,17]
@@ -64,7 +64,7 @@ def transform_activation_file(input_file, output_file):
     # Pattern: [start, start+1, start+2, start+3, start+6, start+7, start+8, start+9]
     # Row 0: [0, 1, 2, 3, 6, 7, 8, 9]
     # Row 1: [1, 2, 3, 4, 7, 8, 9, 10]
-    # Row 2: [3, 4, 5, 6, 9, 10, 11, 12]
+    # Row 2: [2, 3, 4, 5, 8, 9, 10, 11]
     # Row 3: [6, 7, 8, 9, 12, 13, 14, 15]
     # Row 4: [7, 8, 9, 10, 13, 14, 15, 16]
     # Row 5: [8, 9, 10, 11, 14, 15, 16, 17]
@@ -78,7 +78,7 @@ def transform_activation_file(input_file, output_file):
         elif new_row_idx == 1:
             start = 1
         elif new_row_idx == 2:
-            start = 3
+            start = 2
         elif new_row_idx == 3:
             start = 6
         elif new_row_idx == 4:

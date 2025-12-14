@@ -99,8 +99,8 @@ module corelet #(
   ofifo #(.bw(psum_bw), .col(col)) ofifo_instance (
     .clk     (clk                     ),
     .reset   (reset                   ),
-    .in      (mac_array_data_out       ),
-    .out     (ofifo_data_out           ),
+    .in      (mac_array_data_out      ),
+    .out     (ofifo_data_out          ),
     .rd      (ofifo_valid             ),
     .wr      (ofifo_wr                ),
     .o_full  (                        ),
@@ -111,6 +111,7 @@ module corelet #(
   SFU #(.psum_bw(psum_bw), .col(col)) SFU_instance (
     .clk          (clk                     ),
     .reset        (reset                   ),
+    .is_os        (is_os                   ),
     // sense signal from ofifo and output ctrl
     .ofifo_valid  (ofifo_valid             ),
     .ofifo_data   (ofifo_data_out           ),

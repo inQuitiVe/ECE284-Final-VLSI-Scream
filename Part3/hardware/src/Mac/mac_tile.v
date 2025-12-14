@@ -30,7 +30,7 @@ module mac_tile (
   reg [2:0]          inst_q, inst_q_nxt;
   reg [bw-1:0]       a_q, a_q_nxt;  // activation
   reg [bw-1:0]       b0_q, b0_q_nxt, b1_q, b1_q_nxt;  // weight
-  reg [psum_bw-1:0]  c_q, c_q_nxt;  // psum
+  reg [psum_bw-1:0]  c_q, c_q_nxt, c_q_reg;  // psum
   // load_ready_q: init to 2'b11 for WS in 2 bit mode, load to b0 when 3, load b1 when 1
   reg  [1:0]         load_ready_q, load_ready_q_nxt;  // WS: weight preload, OS: psum preload
   wire [psum_bw-1:0] mac_out;
@@ -40,7 +40,7 @@ module mac_tile (
   assign out_e  = a_q;
   assign inst_e = inst_q;
   // OS mode: when inst_q[2] (flush psum), output accumulated psum (c_q)
-  assign out_s  = ~is_os ? mac_out : inst_w[2] ? c_q : act_2b_mode ? {8'b0, b1_q, b0_q} : {12'b0, b0_q};
+  assign out_s  = ~is_os ? mac_out : inst_q[2] ? c_q_reg : act_2b_mode ? {8'b0, b1_q, b0_q} : {12'b0, b0_q};
 
   // WS mode: weight preload, OS mode: psum preload
   assign is_preload = inst_w[0] & |load_ready_q;
@@ -100,6 +100,7 @@ module mac_tile (
       b0_q         <= 0;
       b1_q         <= 0;
       c_q          <= 0;
+      c_q_reg      <= 0;
     end
     else begin
       inst_q       <= inst_q_nxt;
@@ -108,6 +109,7 @@ module mac_tile (
       b0_q         <= b0_q_nxt;
       b1_q         <= b1_q_nxt;
       c_q          <= c_q_nxt;
+      c_q_reg      <= c_q;
     end
   end
 

@@ -14,13 +14,17 @@ module core_tb;
   parameter bw      = 4;
   parameter psum_bw = 16;
   parameter len_kij = 9;
+  `ifdef IS_OS
+  parameter len_onij = 8;
+  `else
   parameter len_onij = 16;
+  `endif
   parameter col     = 8;
   parameter mac_col = 8;
   parameter row     = 8;
   parameter len_nij = 18;
   parameter len_ic = 8;
-  parameter outflush_cycles = 10;
+  parameter outflush_cycles = 100;
 
   reg clk   = 0;
   reg reset = 1;
