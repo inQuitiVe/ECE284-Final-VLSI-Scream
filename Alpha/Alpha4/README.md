@@ -54,4 +54,4 @@ irun compiled
 4. TB sends a readout signal.
 
 #### Notes
-The bias functionality is not verified by golden pattern, however, we believe that it's trivial enough to
+The golden pattern files didn't include bias pattern because we're running out of time. A zero vector is fed to the bias input among all testcases. Nonetheless, the golden pattern effectly validates accumulation, Maxpool and ReLU of SFU. We believe the expression of bias adding is trivial enough to be correct.
