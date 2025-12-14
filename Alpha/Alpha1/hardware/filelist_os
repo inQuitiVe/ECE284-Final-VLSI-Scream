@@ -1,4 +1,4 @@
-src/core_tb.v
+src/core_tb_os.v
 src/core.v
 src/corelet.v
 src/SFU/SFU.v
