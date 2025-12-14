@@ -18,23 +18,6 @@ cfg = {
         "N",
         "D512",
     ],
-    # "ConvNext_4bit_pool": [
-    #     "F",
-    #     "N",
-    #     "M",
-    #     128,
-    #     "N",
-    #     "M",
-    #     256,
-    #     "N",
-    #     "M",
-    #     8,
-    #     "N",
-    #     256,
-    #     "M",
-    #     512,
-    #     "N",
-    # ],
     "VGG16_4bit": [
         "F",
         64,
@@ -122,11 +105,12 @@ cfg = {
 
 
 class VGG_quant(nn.Module):
-    def __init__(self, model_name, weight_bits=4, act_bits=4):
+    def __init__(self, model_name, model_config, weight_bits=4, act_bits=4):
         super(VGG_quant, self).__init__()
         self.weight_bits = weight_bits
         self.act_bits = act_bits
         self.no_bn = False
+        self.model_config = model_config
 
         self.features = self._make_layers(cfg[model_name])
         self.classifier = nn.Linear(512, 10)
@@ -150,7 +134,7 @@ class VGG_quant(nn.Module):
                     nn.ReLU(inplace=True),
                 ]
                 in_channels = 64
-            elif x == 8 or x == 16:
+            elif ("bn" not in self.model_config) and (x == 8 or x == 16):
                 if self.no_bn:
                     layers += [
                         QuantConv2d(
@@ -219,16 +203,19 @@ class VGG_quant(nn.Module):
                     gamma = bn.weight
                     beta = bn.bias
 
-                    w = conv.weight
+                    w = (
+                        conv.weight_quant(conv.weight)
+                        if isinstance(layer, QuantConv2d)
+                        else conv.weight
+                    )
+
                     if conv.bias is not None:
                         b = conv.bias
                     else:
                         b = torch.zeros_like(mu)
 
-                    # Calculate scaling factor for weights
                     scale_factor = gamma / sigma
-
-                    w_new = w * scale_factor.reshape(-1, 1, 1, 1)
+                    w_new = w * scale_factor.view(-1, 1, 1, 1)
                     b_new = beta + (b - mu) * scale_factor
 
                     conv.weight.data.copy_(w_new)
@@ -237,16 +224,8 @@ class VGG_quant(nn.Module):
                     else:
                         conv.bias.data.copy_(b_new)
 
-                    if hasattr(conv, "weight_quant") and hasattr(
-                        conv.weight_quant, "wgt_alpha"
-                    ):
-                        sf_abs = scale_factor.abs()
-                        if conv.weight_quant.wgt_alpha.numel() == 1:
-                            conv.weight_quant.wgt_alpha.data *= sf_abs.mean()
-                        else:
-                            conv.weight_quant.wgt_alpha.data *= sf_abs.view_as(
-                                conv.weight_quant.wgt_alpha
-                            )
+                    if isinstance(layer, QuantConv2d):
+                        conv.w_alpha.data *= scale_factor.abs().mean()
 
                 new_features.append(conv)
                 i += 2
@@ -275,9 +254,7 @@ class ConvNext_quant(nn.Module):
         layers = []
         in_channels = 3
         for x in cfg:
-            if x == "M":
-                layers += [nn.MaxPool2d(kernel_size=2, stride=2)]
-            elif x == "F":
+            if x == "F":
                 layers += [
                     nn.Conv2d(
                         in_channels,
@@ -287,6 +264,7 @@ class ConvNext_quant(nn.Module):
                         bias=True,
                     ),
                     nn.BatchNorm2d(self.first_channel),
+                    nn.ReLU(),
                 ]
                 in_channels = self.first_channel
             elif x == "N":
@@ -302,6 +280,7 @@ class ConvNext_quant(nn.Module):
                             padding=1,
                             weight_bits=self.weight_bits,
                             act_bits=self.act_bits,
+                            unsigned=True,
                         ),
                     ]
                     in_channels = x
@@ -317,6 +296,7 @@ class ConvNext_quant(nn.Module):
                             padding=0,
                             weight_bits=self.weight_bits,
                             act_bits=self.act_bits,
+                            unsigned=True,
                         ),
                     ]
                     in_channels = num

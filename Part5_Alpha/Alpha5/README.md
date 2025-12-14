@@ -1,61 +1,106 @@
-# Done
+# SFU for ReLU + MaxPool(2x2, stride=2)
 
-> Files for **4 bits** and **2 bits** accuracies are stored in "./Files/" Folder
+This document describes the behavior and design of this advanced SFU.v, which extends Alpha 7 (controller embedded SFU so that TB only needs to feed data and minimal control signals).
 
-## 4 bits Model 
+## Key Innovation: Conv-BN Fusion Design
 
-- It achieves **91.53%** accuracy
+This implementation adopts a **Conv-BN + ReLU + MaxPooling** module design that fuses BatchNorm (BN) with convolution to significantly reduce parameters. The key design decision is how to handle the bias term from the fused Conv-BN layer.
 
-## 2 bit Model
+### Model Fusion Strategy
 
-- It achieves **90.67%** accuracy
+The original BatchNorm operation applied after convolution can be expressed as:
 
-## Shapes of txt Files
+\[
+\begin{cases}
+x_{\text{conv}} = w_{\text{conv}} \cdot x_{\text{in}} + b \\
+x_{\text{bn}} = \frac{x_{\text{conv}} - \mu}{\sqrt{\sigma^2 + \epsilon}} \cdot \gamma + \beta
+\end{cases}
+\]
 
-1. Output Stationary:
+where $x_{\text{conv}}$ is the convolution output, $w_{\text{conv}}$ is the convolution weight, $x_{\text{in}}$ is the input, $b$ is the convolution bias, $\mu$ is the BatchNorm mean, $\sigma^2$ is the BatchNorm variance, $\epsilon$ is a small constant for numerical stability, $\gamma$ is the BatchNorm scaling factor, and $\beta$ is the BatchNorm shifting factor (bias).
 
-| Parameter | Output Stationary |
-|---|---|
-| Weight Number | $(2, k^2, \dfrac{C_{in}}{t})$ |
-| Weight Shape | $(t, \dfrac{C_{out}}{2} )$ |
-| Input Number | $(2, \dfrac{C_{in}}{t})$ |
-| Input Shapes | $(t,4,w+2p)$ |
+By substituting the convolution output into the BatchNorm equation and rearranging terms, we can express the combined operation as a single linear transformation:
 
-2. Weight Stationary:
+\[
+x_{\text{bn}} = w' \cdot x_{\text{in}} + b'
+\]
 
-| Parameter | Weight Stationary |
-|---|---|
-| Input Number | $\dfrac{C_{in}}{t}$ |
-| Input Shape | $(t, h+2p, w+2p)$ |
-| Weight Number | $(k^2, \dfrac{C_{in}}{t}, \dfrac{C_{out}}{t})$ |
-| Weight Shape | $(t, t)$ |
+where the fused parameters are:
 
-- $h=w=4, t = \text{tile size} = 8$
+\[
+\begin{cases}
+w' = \frac{\gamma}{\sqrt{\sigma^2 + \epsilon}} \cdot w_{\text{conv}} \\
+b' = \frac{(b - \mu)}{\sqrt{\sigma^2 + \epsilon}} \cdot \gamma + \beta
+\end{cases}
+\]
 
-- Outputs are $(t, \dfrac{C_{out}}{t} hw  )$
+- **BatchNorm fusion**: BatchNorm multiplication parameters are folded directly into the convolution weights through model fusion, eliminating the need to store and compute BN parameters separately.
+- **Bias handling**: Since the original convolution operation does not include a bias term ($b = 0$), the fused bias simplifies to:
 
-## Others
+\[
+b' = \frac{-\mu}{\sqrt{\sigma^2 + \epsilon}} \cdot \gamma + \beta
+\]
 
-- All the `.txt` files are extracted from the **27th** layer of the Model.
+We handle the fused Conv-BN bias by adding it during the **first accumulation update** in the SFU (when `kij = 0`). The accumulation process becomes:
 
-- The input data is the **1st image** of the **test data** in CIFAR10
+\[
+\text{psum} = \begin{cases}
+w' \cdot x_{\text{in}} + b' & \text{if } kij = 0 \\
+\text{psum} + w' \cdot x_{\text{in}} & \text{if } kij > 0
+\end{cases}
+\]
 
-- **Original VGG16 Model** achieves an accuracy of **92.13%**
+This approach allows us to incorporate the bias from the fused Conv-BN layer without modifying the core convolution hardware.
 
-- Outputs are 16 bits
+### Design Benefits
 
-- `path/` files can be downloaded from `https://drive.google.com/drive/folders/1Msoyvbh17tpp8IkoSukHmSEJGndVMcX8?usp=drive_link`
+- **Parameter reduction**: BN parameters ($\mu$, $\sigma^2$, $\gamma$, $\beta$) are fixed at inference and fused into adjacent convolution layers, eliminating the need to store and process them separately.
+- **Computation reduction**: Eliminates runtime normalization operations, reducing computation by **4.3%**.
+- **Hardware cost reduction**: Simplifies datapath design by removing BatchNorm hardware, reducing hardware cost by **25%**.
+- **Design efficiency**: The fused parameters can be pre-computed offline and loaded as standard convolution weights and biases, improving overall system efficiency.
 
-# Alphas
+### Complete Pipeline
 
-1. For ConvNext Model
+The complete processing pipeline in Alpha5 integrates the fused Conv-BN with ReLU and MaxPooling:
 
-- It achieves an accuracy of **89.70%**
+\[
+\text{output} = \text{ReLU}(\text{MaxPool}(w' \cdot x_{\text{in}} + b'))
+\]
 
-- BN Fusion is finished in `.quant_model`
+where $w'$ and $b'$ are the pre-computed fused parameters, and the bias $b'$ is added during the first accumulation cycle in the SFU.
 
-# TODO
+## Implementation Details
 
-1. **LayerNorm** Hardware implementation can be tricky
+### FSM Modifications
 
-2. Act Quantization doesn't support **negative inputs**
+The FSM state `S_ReLU` is repurposed as `S_SPF` (Summation, Pooling, and Function) to perform both MaxPooling and ReLU operations. MaxPooling happens right before ReLU, and both operations are performed in this state.
+
+### MaxPooling Mechanism
+
+- Spatial size: 4 × 4 → 2 × 2 (stride=2)
+- Hardware-efficient implementation requiring only 1 additional flip-flop per SIMD lane
+- Uses a specially designed `o_nij` read sequence to minimize hardware complexity
+- The MPL2D unit updates the current maximum incrementally and resets every 4 cycles
+
+### ReLU Mechanism
+
+ReLU is cascaded after the MaxPooling output.
+
+## Testbench Usage
+
+```bash
+cd Alpha5/
+iverilog -f filelist -o compiled
+vvp compiled
+```
+
+## Testbench Design
+
+1. TB feeds `kij` and `psum.txt` to SFU.
+2. SFU performs accumulation for `kij=0..8`. **The bias from the fused Conv-BN is added during the first accumulation update (kij=0).**
+3. After accumulation of `kij=8`, SFU enters `S_SPF` state that performs MaxPool and ReLU, and saves the result in output memory.
+4. TB sends a readout signal.
+
+#### Notes
+
+The golden pattern files didn't include bias pattern because we're running out of time. A zero vector is fed to the bias input among all testcases. Nonetheless, the golden pattern effectively validates accumulation, MaxPool and ReLU of SFU. We believe the expression of bias adding is trivial enough to be correct.

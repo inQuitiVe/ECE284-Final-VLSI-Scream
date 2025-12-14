@@ -8,21 +8,21 @@ class BaseConfig:
     train_bsz: int = 128
     test_bsz: int = 500
 
-    epochs: int = 100
+    epochs: int = 60
     check_epoch: int = 5
     num_workers: int = os.cpu_count() - 2
 
-    init_lr: float = 5e-3
+    init_lr: float = 5e-4
     final_lr: float = 4e-4
 
     tile_size: int = 8
-    pe_config: str = field(default="os", metadata={"choices": ["os", "ws"]})
+    pe_config: str = field(default="ws", metadata={"choices": ["os", "ws"]})
     model_config: str = field(
         default="standard",
-        metadata={"choices": ["bn_fuse", "standard", "bnr_fuse"]},
+        metadata={"choices": ["bn", "standard"]},
     )
     model_name: str = field(
-        default="ConvNext", metadata={"choices": ["vgg16", "ConvNext"]}
+        default="VGG16", metadata={"choices": ["VGG16", "ConvNext"]}
     )
 
     update_steps: int = 1
@@ -51,10 +51,10 @@ class BaseConfig:
             self.channel = 8
 
         # Select layer_num
-        if self.model_name == "vgg16":
+        if self.model_name == "VGG16":
             self.layer_num = 27
         elif self.model_name == "ConvNext":
-            self.layer_num = 10
+            self.layer_num = 11
 
         # Select Model Names
         self.model_save_name = (
