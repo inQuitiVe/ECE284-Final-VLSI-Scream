@@ -5,6 +5,7 @@ module SFU #(
     input clk,
     input reset,
     // sense signal from ofifo and output ctrl
+    input                     is_os,
     input                     ofifo_valid,
     input [psum_bw*col-1:0]   ofifo_data,
     // data in and ctrl signal for PSUM SRAM
@@ -32,19 +33,26 @@ module SFU #(
     reg flush_cycle, flush_cycle_nxt;
     reg [2:0]  state, state_nxt;
 
+    wire [3:0] kij_max = is_os ? 4'd0 : 4'd8;
+
 
     reg [5:0]  nij, nij_nxt;       // 0~35,
     reg [3:0]  o_nij, o_nij_nxt;    // 0~15
 
+    wire [5:0] nij_max = is_os ? 6'd7 : 6'd35;
+
 
 
     // combinational logic
-    wire        cal_acc;  //Whether this psum is in output's region
-    wire [3:0]  cal_o_nij;
+    wire        cal_acc, cal_acc_raw;  //Whether this psum is in output's region
+    wire [3:0]  cal_o_nij, cal_o_nij_raw;
     // calculation o_addr from nij, kij         
     onij_calculator onij_calculator_instance(
-        .nij(nij), .kij(kij), .acc(cal_acc), .o_addr(cal_o_nij)
+        .nij(nij), .kij(kij), .acc(cal_acc_raw), .o_addr(cal_o_nij_raw)
     );
+
+    assign cal_acc = is_os ? 1'b1 : cal_acc_raw;
+    assign cal_o_nij = is_os ? nij : cal_o_nij_raw;
 
 
     // delayed signals
@@ -91,10 +99,10 @@ module SFU #(
                 if(flush_cycle)begin
                     flush_cycle_nxt = 1'b0;
                     nij_nxt = 6'd0;
-                    state_nxt = (kij==4'd8)? S_ReLU : S_Idle;
+                    state_nxt = (kij==kij_max)? S_ReLU : S_Idle;
                 end
                 else begin
-                    if(nij == 6'd35)begin
+                    if(nij == nij_max)begin
                         nij_nxt = 6'd0;
                         flush_cycle_nxt = 1'b1;
                         state_nxt = S_Acc;
