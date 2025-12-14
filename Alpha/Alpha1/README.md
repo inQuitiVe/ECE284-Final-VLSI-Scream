@@ -133,12 +133,12 @@ iverilog -v
 make --version
 ```
 
-### 3. Build Reference Implementations
+### 3. Verify Source Files
 
 ```bash
-cd hardware/src/hw_ref
-iverilog -o test_mac mac.v mac_tb.v
-vvp test_mac
+# Check that source files exist
+ls -la hardware/src/Mac/
+ls -la hardware/src/SFU/
 ```
 
 ## Quick Start
@@ -171,7 +171,8 @@ make all
 make view
 
 # Check output files
-cat golden/ws4bit/output.txt
+cat hardware/golden/ws4bit/out.txt        # For ws4bit mode
+cat hardware/golden/ws2bit/output.txt     # For ws2bit mode
 ```
 
 > **Note**: If you need to prepare your own test data, see [Data Preparation](#data-preparation) section below.
@@ -194,12 +195,26 @@ Alpha1/
 │   │   ├── core_tb_os.v    # OS mode testbench
 │   │   ├── core.v          # Top-level core module
 │   │   ├── corelet.v       # Corelet (MAC array + FIFOs)
+│   │   ├── mac_vanilla.v   # Vanilla MAC implementation
+│   │   ├── mac_flex.v      # Flexible MAC implementation
 │   │   │
 │   │   ├── Mac/            # MAC array modules
 │   │   │   ├── mac_array.v # MAC array top-level
 │   │   │   ├── mac_row.v   # MAC row
 │   │   │   ├── mac_tile.v  # MAC tile (PE)
 │   │   │   └── mac.v       # Basic MAC unit
+│   │   │
+│   │   ├── os/             # Output Stationary implementation
+│   │   │   ├── mac_array.v # OS MAC array
+│   │   │   ├── mac_row.v   # OS MAC row
+│   │   │   ├── mac_tile.v  # OS MAC tile
+│   │   │   └── README.md   # OS implementation notes
+│   │   │
+│   │   ├── hw_ref/         # Reference hardware implementations
+│   │   │   ├── mac_array.v
+│   │   │   ├── mac_row.v
+│   │   │   ├── mac_tile.v
+│   │   │   └── mac.v
 │   │   │
 │   │   ├── SFU/            # Summation and Function Unit
 │   │   │   ├── SFU.v       # SFU main module
@@ -210,7 +225,10 @@ Alpha1/
 │   │   │   ├── l0.v        # L0 FIFO
 │   │   │   ├── ififo.v     # Input FIFO (OS mode)
 │   │   │   ├── ofifo.v     # Output FIFO
-│   │   │   └── fifo_depth64.v  # Base FIFO
+│   │   │   ├── fifo_depth64.v  # Base FIFO
+│   │   │   ├── fifo_mux_2_1.v  # 2-to-1 FIFO mux
+│   │   │   ├── fifo_mux_8_1.v  # 8-to-1 FIFO mux
+│   │   │   └── fifo_mux_16_1.v # 16-to-1 FIFO mux
 │   │   │
 │   │   └── SRAM/           # SRAM modules
 │   │       ├── sram_32b_w2048.v   # X_MEM
@@ -219,22 +237,40 @@ Alpha1/
 │   │
 │   ├── golden/             # Test data
 │   │   ├── ws4bit/         # WS mode, 4-bit data
+│   │   │   ├── activation_tile0.txt
+│   │   │   ├── weight_itile0_otile0_kij*.txt
+│   │   │   ├── out.txt, out_raw.txt
+│   │   │   └── viz/        # Visualization files
+│   │   │
 │   │   ├── ws2bit/         # WS mode, 2-bit data
+│   │   │   ├── activation_tile0.txt, activation_tile1.txt
+│   │   │   ├── weight_itile*_otile*_kij*.txt
+│   │   │   ├── output.txt
+│   │   │   ├── viz/        # Visualization files
+│   │   │   └── *.py        # Analysis scripts
+│   │   │
 │   │   ├── os4bit/         # OS mode, 4-bit data
+│   │   │   ├── activation_tile0.txt
+│   │   │   ├── weight_itile0_otile0_kij*.txt
+│   │   │   ├── out.txt, out_raw.txt
+│   │   │   ├── ref/        # Reference files
+│   │   │   ├── viz/        # Visualization files
+│   │   │   └── psum_analysis/  # PSUM analysis
+│   │   │
 │   │   └── os2bit/         # OS mode, 2-bit data
+│   │       ├── activation_tile0.txt, activation_tile1.txt
+│   │       ├── weight_itile*_otile*_kij*.txt
+│   │       ├── expected_output*.txt
+│   │       ├── ref/        # Reference files
+│   │       └── viz/        # Visualization files
 │   │
-│   └── scripts/            # Data transformation scripts
+│   └── *.py                # Data transformation scripts (in hardware/)
 │       ├── transform_activation.py      # 4-bit activation transform
 │       ├── transform_activation_2bit.py # 2-bit activation transform
 │       ├── transpose_weights.py         # Weight transpose
 │       ├── transpose_weights_2bit.py    # 2-bit weight transpose
-│       └── verify_transform_2bit.py     # Verification script
-│
-└── golden/                 # Additional test data
-    ├── ws2bit/             # WS 2-bit test data
-    ├── ws4bit/             # WS 4-bit test data
-    ├── os2bit/             # OS 2-bit test data
-    └── os4bit/             # OS 4-bit test data
+│       ├── verify_transform_2bit.py     # Verification script
+│       └── compare_transforms.py        # Compare transform algorithms
 ```
 
 ## Usage
@@ -271,8 +307,8 @@ make all
 | `os_vanilla` | 4-bit activation, Output Stationary mode |
 | `os_2b` | 2-bit activation, Output Stationary mode |
 | `all` | Run all test modes sequentially |
-| `clean` | Remove compiled files and VCD |
-| `view` | View waveform with GTKWave |
+| `clean` | Remove compiled files and VCD files |
+| `view` | View waveform with GTKWave (checks for core_tb.vcd) |
 | `help` | Show all available targets |
 
 ### Advanced Usage
@@ -292,8 +328,16 @@ vvp compiled
 make vanilla
 make view
 
-# Or manually
-gtkwave core_tb_vanilla.vcd
+# Or manually (VCD filename depends on mode)
+# Note: VCD files are generated in hardware/ directory
+cd hardware
+gtkwave core_tb_vanilla.vcd    # For vanilla mode
+gtkwave core_tb_2bit.vcd       # For 2-bit mode
+gtkwave core_tb_os_vanilla.vcd # For OS vanilla mode
+gtkwave core_tb_os_2bit.vcd    # For OS 2-bit mode
+
+# Note: Makefile's 'view' target checks for core_tb.vcd which may not exist
+# Use the specific VCD filename based on the mode you ran
 ```
 
 #### Debug Mode
@@ -343,91 +387,147 @@ This section describes how to prepare your own test data if you want to use cust
 
 #### Output File Format
 
-- Binary format: 256 bits per line (16 channels × 16 bits)
-- Each channel represents one output feature
-- Data is ordered from row7 to row0 (MSB to LSB)
+- Binary format: 128 bits per line (8 channels × 16 bits)
+- Each channel represents one output feature (mac_col = 8)
+- Each channel is 16 bits (psum_bw = 16)
+- Data is ordered from col7 to col0 (MSB to LSB)
+- Format: `timeXcol7[msb-lsb], timeXcol6[msb-lsb], ..., timeXcol0[msb-lsb]`
 
 ### Step 1: Prepare Activation Data
 
-#### For 4-bit Mode (WS)
+#### For 4-bit Mode (OS)
 
 ```bash
 cd hardware
-python transform_activation.py \
-    --input golden/os4bit/ref/activation_tile0.txt \
-    --output golden/os4bit/activation_tile0.txt
+python transform_activation.py
 ```
 
 **What it does:**
-- Transforms activation data from time-row format to row-time format for OS mode
+- Transforms activation data from `golden/os4bit/ref/` to `golden/os4bit/`
+- Converts from time-row format to row-time format for OS mode
 - Reorganizes data according to OS mode requirements
-- See `transform_activation.py` for detailed transformation algorithm
+- **Note**: This script is for OS mode only, uses hardcoded paths
+- Automatically processes all activation files in the ref directory
 
-#### For 2-bit Mode (WS)
+#### For 2-bit Mode (OS)
 
 ```bash
-python transform_activation_2bit.py \
-    --input_tile0 golden/ws2bit/activation_tile0.txt \
-    --input_tile1 golden/ws2bit/activation_tile1.txt \
-    --output golden/ws2bit/activation_interleaved.txt
+cd hardware
+python transform_activation_2bit.py
 ```
 
 **What it does:**
+- Transforms activation data from `golden/os2bit/ref/` to `golden/os2bit/`
 - Interleaves two activation tiles with tile1 in MSB
 - Processes data in 2-bit steps
-- See `transform_activation_2bit.py` for detailed algorithm
+- **Note**: This script is for OS mode only, uses hardcoded paths
+- Automatically processes all activation files in the ref directory
 
 ### Step 2: Prepare Weight Data
 
 #### For 4-bit Mode (OS)
 
 ```bash
-python transpose_weights.py \
-    --input_dir golden/os4bit/ref/ \
-    --output_dir golden/os4bit/
+cd hardware
+python transpose_weights.py
 ```
 
 **What it does:**
-- Transposes weight matrices from col-row format to row-col format
+- Transposes weight files from `golden/os4bit/ref/` to `golden/os4bit/`
+- Converts weight matrices from col-row format to row-col format
 - Required for OS mode dataflow
-- See `transpose_weights.py` for detailed transformation
+- Uses hardcoded paths, automatically processes all weight files
 
-#### For 2-bit Mode
+#### For 2-bit Mode (OS)
 
 ```bash
-python transpose_weights_2bit.py \
-    --input_dir golden/ws2bit/from_yufan/ \
-    --output_dir golden/ws2bit/
+cd hardware
+python transpose_weights_2bit.py
 ```
 
 **What it does:**
+- Transposes weight files from `golden/os2bit/ref/` to `golden/os2bit/`
 - Similar to 4-bit transpose but handles 2-bit values
 - Processes tile-based weight organization
-- See `transpose_weights_2bit.py` for details
+- Uses hardcoded paths, automatically processes all weight files
 
 ### Step 3: Verify Data Format
 
 ```bash
-# Verify 2-bit transformation
-python verify_transform_2bit.py \
-    --input golden/ws2bit/activation_interleaved.txt
+cd hardware
+
+# Verify 2-bit transformation (for OS mode)
+python verify_transform_2bit.py
 
 # Compare transformation algorithms
 python compare_transforms.py
+```
+
+**Note**: `verify_transform_2bit.py` verifies OS 2-bit transformations using hardcoded paths (`golden/os2bit/ref/` and `golden/os2bit/`).
+
+### Step 4: Generate Visualization Files
+
+Binary data files are not human-readable. Use the `viz.py` scripts to convert them to decimal format for debugging and verification.
+
+#### For 4-bit Mode
+
+```bash
+# WS mode
+cd hardware/golden/ws4bit
+python viz.py
+
+# OS mode
+cd hardware/golden/os4bit
+python viz.py
+```
+
+#### For 2-bit Mode
+
+```bash
+# WS mode
+cd hardware/golden/ws2bit
+python viz.py
+
+# OS mode
+cd hardware/golden/os2bit
+python viz.py
+```
+
+**What it does:**
+- Converts binary data files to human-readable decimal format
+- Creates `viz/` directory with converted files
+- **Activation files**: Converts 4-bit/2-bit unsigned values to decimal (0-15 for 4-bit, 0-3 for 2-bit)
+- **Weight files**: Converts 4-bit signed values to decimal (-8 to 7)
+- **Output files**: Converts 16-bit signed values to decimal (-32768 to 32767)
+
+**Generated files:**
+- `viz/viz_activation_tile*.txt`: Human-readable activation values
+- `viz/viz_weight_*.txt`: Human-readable weight values
+- `viz/viz_out.txt`: Human-readable output values (after ReLU)
+- `viz/viz_out_raw.txt`: Human-readable raw output values (before ReLU)
+
+**Example usage:**
+```bash
+# View converted activation data
+cat hardware/golden/ws4bit/viz/viz_activation_tile0.txt
+
+# View converted output
+cat hardware/golden/ws4bit/viz/viz_out.txt
 ```
 
 ### Python Scripts Reference
 
 All data transformation scripts are located in `hardware/`:
 
-| Script | Purpose | Input Format | Output Format |
-|--------|---------|--------------|---------------|
-| `transform_activation.py` | Transform 4-bit activations for OS mode | Time-row format | Row-time format |
-| `transform_activation_2bit.py` | Interleave 2-bit activation tiles | Two tile files | Interleaved file |
-| `transpose_weights.py` | Transpose 4-bit weights for OS mode | Col-row format | Row-col format |
-| `transpose_weights_2bit.py` | Transpose 2-bit weights | Col-row format | Row-col format |
-| `verify_transform_2bit.py` | Verify 2-bit transformation | Interleaved file | Validation report |
-| `compare_transforms.py` | Compare transform algorithms | N/A | Comparison report |
+| Script | Location | Purpose | Input Path | Output Path | Notes |
+|--------|----------|---------|------------|-------------|-------|
+| `transform_activation.py` | `hardware/` | Transform 4-bit activations for OS mode | `golden/os4bit/ref/` | `golden/os4bit/` | Hardcoded paths, no args |
+| `transform_activation_2bit.py` | `hardware/` | Transform 2-bit activations for OS mode | `golden/os2bit/ref/` | `golden/os2bit/` | Hardcoded paths, no args |
+| `transpose_weights.py` | `hardware/` | Transpose 4-bit weights for OS mode | `golden/os4bit/ref/` | `golden/os4bit/` | Hardcoded paths, no args |
+| `transpose_weights_2bit.py` | `hardware/` | Transpose 2-bit weights for OS mode | `golden/os2bit/ref/` | `golden/os2bit/` | Hardcoded paths, no args |
+| `verify_transform_2bit.py` | `hardware/` | Verify 2-bit OS transformation | `golden/os2bit/` | Console output | Hardcoded paths, no args |
+| `compare_transforms.py` | `hardware/` | Compare transform algorithms | N/A | Console output | No arguments needed |
+| `viz.py` | `golden/*/` | Convert binary to decimal format | Current directory | `viz/` | Run from golden subdirectory |
 
 ### Pre-compilation Data Preparation Workflow
 
@@ -437,16 +537,22 @@ Complete workflow for preparing custom test data:
 cd hardware
 
 # 1. Prepare 4-bit OS mode data
+# (Must be run from hardware/ directory)
 python transform_activation.py
 python transpose_weights.py
 
-# 2. Prepare 2-bit WS mode data
+# 2. Prepare 2-bit OS mode data
+# (Must be run from hardware/ directory)
 python transform_activation_2bit.py
 python transpose_weights_2bit.py
 
 # 3. Verify transformations
+# (Must be run from hardware/ directory)
 python verify_transform_2bit.py
 python compare_transforms.py
+
+# Note: All scripts use hardcoded paths relative to hardware/ directory
+# WS mode data preparation scripts are in golden/ws2bit/ directory
 
 # 4. Run simulations
 make vanilla
@@ -497,16 +603,21 @@ golden/
 ├── ws4bit/          # Weight Stationary, 4-bit
 │   ├── activation_tile0.txt
 │   ├── weight_itile0_otile0_kij*.txt
-│   └── output.txt
+│   ├── out.txt              # Output (after ReLU)
+│   └── out_raw.txt          # Raw output (before ReLU)
 ├── ws2bit/          # Weight Stationary, 2-bit
-│   ├── activation_tile0.txt
-│   ├── activation_tile1.txt
+│   ├── activation_tile0.txt, activation_tile1.txt
 │   ├── weight_itile*_otile*_kij*.txt
-│   └── output.txt
+│   └── output.txt           # Output file
 ├── os4bit/          # Output Stationary, 4-bit
+│   ├── activation_tile0.txt
+│   ├── weight_itile0_otile0_kij*.txt
+│   ├── out.txt, out_raw.txt
 │   └── ...
 └── os2bit/          # Output Stationary, 2-bit
-    └── ...
+    ├── activation_tile0.txt, activation_tile1.txt
+    ├── weight_itile*_otile*_kij*.txt
+    └── expected_output*.txt
 ```
 
 ### Running Tests
@@ -515,18 +626,46 @@ golden/
 # Run specific test mode
 make vanilla
 
-# Verify output
-python scripts/verify_output.py \
-    --expected golden/ws4bit/output.txt \
-    --actual output/result.txt
+# Verify output (testbench automatically compares)
+# For ws4bit: compares against hardware/golden/ws4bit/out.txt
+# For ws2bit: compares against hardware/golden/ws2bit/expected_output_from_psum_binary.txt
+# For os4bit: compares against hardware/golden/os4bit/out.txt
+# For os2bit: compares against hardware/golden/os2bit/expected_output_from_psum_binary.txt
 ```
 
 ### Expected Output Format
 
 Output files contain:
-- Binary format: 256 bits per line (16 channels × 16 bits)
-- Each channel represents one output feature
-- Data is ordered from row7 to row0 (MSB to LSB)
+- Binary format: 128 bits per line (8 channels × 16 bits)
+- Each channel represents one output feature (mac_col = 8)
+- Each channel is 16 bits (psum_bw = 16)
+- Data is ordered from col7 to col0 (MSB to LSB)
+- Format: `timeXcol7[msb-lsb], timeXcol6[msb-lsb], ..., timeXcol0[msb-lsb]`
+
+### Viewing Results with Visualization
+
+For easier debugging and verification, use the visualization scripts to convert binary outputs to human-readable format:
+
+```bash
+# Generate visualization files
+cd hardware/golden/ws4bit
+python viz.py
+
+# View human-readable output
+cat viz/viz_out.txt
+```
+
+The visualization files show:
+- **Activation values**: Decimal representation of input activations
+- **Weight values**: Decimal representation of weights (signed integers)
+- **Output values**: Decimal representation of final outputs (16-bit signed integers)
+- **Raw outputs**: Output values before ReLU activation
+
+This makes it much easier to:
+- Debug data loading issues
+- Verify intermediate calculations
+- Compare expected vs actual outputs
+- Understand data flow through the accelerator
 
 ## Troubleshooting
 
@@ -537,14 +676,17 @@ Output files contain:
 **Solution:**
 ```bash
 # Clean and rebuild
+cd hardware
 make clean
+# Note: clean only removes core_tb.vcd, but actual VCD files have mode-specific names
+# You may need to manually remove: core_tb_vanilla.vcd, core_tb_2bit.vcd, etc.
 make vanilla
 
 # Check filelist
-cat filelist
+cat hardware/filelist
 
 # Verify source files exist
-ls -la src/Mac/
+ls -la hardware/src/Mac/
 ```
 
 #### Issue: Simulation fails
@@ -552,27 +694,30 @@ ls -la src/Mac/
 **Solution:**
 ```bash
 # Check testbench syntax
+cd hardware
 iverilog -t null src/core_tb.v
 
 # Verify golden data exists
-ls -la golden/ws4bit/
+ls -la hardware/golden/ws4bit/
 
 # Check file paths in testbench
-grep "golden" src/core_tb.v
+grep "golden" hardware/src/core_tb.v
 ```
 
 #### Issue: Output mismatch
 
 **Solution:**
 ```bash
-# Verify input data format
-python scripts/verify_transform_2bit.py
+# Verify input data format (for OS 2-bit mode)
+cd hardware
+python verify_transform_2bit.py
+# Note: This script verifies OS mode transformations only
 
 # Check weight file format
-head -n 5 golden/ws4bit/weight_itile0_otile0_kij0.txt
+head -n 5 hardware/golden/ws4bit/weight_itile0_otile0_kij0.txt
 
-# Compare with expected output
-diff output/result.txt golden/ws4bit/output.txt
+# Compare with expected output (check testbench output)
+# The testbench will automatically compare and report mismatches
 ```
 
 #### Issue: OS mode not working
@@ -580,10 +725,11 @@ diff output/result.txt golden/ws4bit/output.txt
 **Solution:**
 ```bash
 # Verify OS filelist
+cd hardware
 cat filelist_os
 
 # Check OS-specific modules
-ls -la src/FIFO/ififo.v
+ls -la hardware/src/FIFO/ififo.v
 
 # Verify OS testbench
 iverilog -DIS_OS -f filelist_os -o test_os
