@@ -4,8 +4,8 @@
 - Implemented a Finite State Machine (FSM) in the SFU module, enabling the SFU to operate autonomously with minimal control signals.
 - Designed the readout mechanism so that tb doesn't have direct access to `p_mem`. This avoids the potential control signal racing condition on SRAM.
 - Reduced PSUM memory size to 4.93%\
-Original: $nij \times och \times kij \times psum\_bw$ (5.0625MB) \
-Our Design: $o\_nij \times och \times psum\_bw$  (0.25MB)
+Original: $nij \times och \times kij \times psum\_ bw$ (5.0625MB) \
+Our Design: $o\_ nij \times och \times psum\_ bw$  (0.25MB)
 - Good FSM structure for features that  
 
 ## Important Notes
