@@ -28,7 +28,9 @@ Part3/
 │   ├── ws4bit/         # WS mode, 4-bit activation data
 │   ├── os2bit/         # OS mode, 2-bit activation data
 │   └── os4bit/         # OS mode, 4-bit activation data
-├── filelist            # Verilog file list
+├── sim/
+│   ├── filelist        # OS mode file list (default)
+│   └── filelist_ws     # WS mode file list
 └── Makefile            # Build system
 ```
 
@@ -198,19 +200,19 @@ Example manual compilation commands:
 
 ```bash
 # 4-bit, WS, ReLU (vanilla)
-iverilog -f filelist -o compiled
+iverilog -f sim/filelist_ws -o compiled
 vvp compiled
 
 # 2-bit, WS, ReLU
-iverilog -DACT_2BIT -f filelist -o compiled
+iverilog -DACT_2BIT -f sim/filelist_ws -o compiled
 vvp compiled
 
 # 4-bit, OS, ReLU
-iverilog -DIS_OS -f filelist -o compiled
+iverilog -DIS_OS -f sim/filelist -o compiled
 vvp compiled
 
 # 2-bit, OS, ELU
-iverilog -DACT_2BIT -DIS_OS -DACT_FUNC_ELU -f filelist -o compiled
+iverilog -DACT_2BIT -DIS_OS -DACT_FUNC_ELU -f sim/filelist -o compiled
 vvp compiled
 ```
 

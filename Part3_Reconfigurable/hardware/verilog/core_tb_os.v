@@ -8,6 +8,9 @@
 //   - Define IS_OS for Output Stationary mode (is_os = 1)
 //   - Undefine IS_OS for Weight Stationary mode (is_os = 0, default)
 
+`ifndef IS_OS
+  `define IS_OS
+`endif
 
 module core_tb;
 
@@ -123,10 +126,10 @@ module core_tb;
     `endif
 
     `ifdef ACT_2BIT
-      x_file = $fopen("golden/os2bit/activation_tile0.txt", "r");
-      x1_file = $fopen("golden/os2bit/activation_tile1.txt", "r");
+      x_file = $fopen("../datafiles/os2bit/activation_tile0.txt", "r");
+      x1_file = $fopen("../datafiles/os2bit/activation_tile1.txt", "r");
     `else
-      x_file = $fopen("golden/os4bit/activation_tile0.txt", "r");
+      x_file = $fopen("../datafiles/os4bit/activation_tile0.txt", "r");
     `endif
     // Following three lines are to remove the first three comment lines of the file
       x_scan_file = $fscanf(x_file,"%s", captured_data);
@@ -159,26 +162,26 @@ module core_tb;
     $display("## Activation.txt Writing to X_MEM End");
 
     `ifdef ACT_2BIT
-      w_file_name[0] = "golden/os2bit/weight_itile0_otile0_kij0.txt"; w1_file_name[0] = "golden/os2bit/weight_itile1_otile0_kij0.txt";
-      w_file_name[1] = "golden/os2bit/weight_itile0_otile0_kij1.txt"; w1_file_name[1] = "golden/os2bit/weight_itile1_otile0_kij1.txt";
-      w_file_name[2] = "golden/os2bit/weight_itile0_otile0_kij2.txt"; w1_file_name[2] = "golden/os2bit/weight_itile1_otile0_kij2.txt";
-      w_file_name[3] = "golden/os2bit/weight_itile0_otile0_kij3.txt"; w1_file_name[3] = "golden/os2bit/weight_itile1_otile0_kij3.txt";
-      w_file_name[4] = "golden/os2bit/weight_itile0_otile0_kij4.txt"; w1_file_name[4] = "golden/os2bit/weight_itile1_otile0_kij4.txt";
-      w_file_name[5] = "golden/os2bit/weight_itile0_otile0_kij5.txt"; w1_file_name[5] = "golden/os2bit/weight_itile1_otile0_kij5.txt";
-      w_file_name[6] = "golden/os2bit/weight_itile0_otile0_kij6.txt"; w1_file_name[6] = "golden/os2bit/weight_itile1_otile0_kij6.txt";
-      w_file_name[7] = "golden/os2bit/weight_itile0_otile0_kij7.txt"; w1_file_name[7] = "golden/os2bit/weight_itile1_otile0_kij7.txt";
-      w_file_name[8] = "golden/os2bit/weight_itile0_otile0_kij8.txt"; w1_file_name[8] = "golden/os2bit/weight_itile1_otile0_kij8.txt";
+      w_file_name[0] = "../datafiles/os2bit/weight_itile0_otile0_kij0.txt"; w1_file_name[0] = "../datafiles/os2bit/weight_itile1_otile0_kij0.txt";
+      w_file_name[1] = "../datafiles/os2bit/weight_itile0_otile0_kij1.txt"; w1_file_name[1] = "../datafiles/os2bit/weight_itile1_otile0_kij1.txt";
+      w_file_name[2] = "../datafiles/os2bit/weight_itile0_otile0_kij2.txt"; w1_file_name[2] = "../datafiles/os2bit/weight_itile1_otile0_kij2.txt";
+      w_file_name[3] = "../datafiles/os2bit/weight_itile0_otile0_kij3.txt"; w1_file_name[3] = "../datafiles/os2bit/weight_itile1_otile0_kij3.txt";
+      w_file_name[4] = "../datafiles/os2bit/weight_itile0_otile0_kij4.txt"; w1_file_name[4] = "../datafiles/os2bit/weight_itile1_otile0_kij4.txt";
+      w_file_name[5] = "../datafiles/os2bit/weight_itile0_otile0_kij5.txt"; w1_file_name[5] = "../datafiles/os2bit/weight_itile1_otile0_kij5.txt";
+      w_file_name[6] = "../datafiles/os2bit/weight_itile0_otile0_kij6.txt"; w1_file_name[6] = "../datafiles/os2bit/weight_itile1_otile0_kij6.txt";
+      w_file_name[7] = "../datafiles/os2bit/weight_itile0_otile0_kij7.txt"; w1_file_name[7] = "../datafiles/os2bit/weight_itile1_otile0_kij7.txt";
+      w_file_name[8] = "../datafiles/os2bit/weight_itile0_otile0_kij8.txt"; w1_file_name[8] = "../datafiles/os2bit/weight_itile1_otile0_kij8.txt";
 
     `else
-      w_file_name[0] = "golden/os4bit/weight_itile0_otile0_kij0.txt";
-      w_file_name[1] = "golden/os4bit/weight_itile0_otile0_kij1.txt";
-      w_file_name[2] = "golden/os4bit/weight_itile0_otile0_kij2.txt";
-      w_file_name[3] = "golden/os4bit/weight_itile0_otile0_kij3.txt";
-      w_file_name[4] = "golden/os4bit/weight_itile0_otile0_kij4.txt";
-      w_file_name[5] = "golden/os4bit/weight_itile0_otile0_kij5.txt";
-      w_file_name[6] = "golden/os4bit/weight_itile0_otile0_kij6.txt";
-      w_file_name[7] = "golden/os4bit/weight_itile0_otile0_kij7.txt";
-      w_file_name[8] = "golden/os4bit/weight_itile0_otile0_kij8.txt";
+      w_file_name[0] = "../datafiles/os4bit/weight_itile0_otile0_kij0.txt";
+      w_file_name[1] = "../datafiles/os4bit/weight_itile0_otile0_kij1.txt";
+      w_file_name[2] = "../datafiles/os4bit/weight_itile0_otile0_kij2.txt";
+      w_file_name[3] = "../datafiles/os4bit/weight_itile0_otile0_kij3.txt";
+      w_file_name[4] = "../datafiles/os4bit/weight_itile0_otile0_kij4.txt";
+      w_file_name[5] = "../datafiles/os4bit/weight_itile0_otile0_kij5.txt";
+      w_file_name[6] = "../datafiles/os4bit/weight_itile0_otile0_kij6.txt";
+      w_file_name[7] = "../datafiles/os4bit/weight_itile0_otile0_kij7.txt";
+      w_file_name[8] = "../datafiles/os4bit/weight_itile0_otile0_kij8.txt";
     `endif
 
     // Open all weight files (kij 0-8) in a loop
@@ -352,10 +355,10 @@ module core_tb;
 
     $display("############ Output Verification Start #############"); 
     `ifdef ACT_2BIT
-      // out_file = $fopen("golden/os2bit/output.txt", "r");
-      out_file = $fopen("golden/os2bit/expected_output_from_psum_binary.txt", "r");
+      // out_file = $fopen("../datafiles/os2bit/output.txt", "r");
+      out_file = $fopen("../datafiles/os2bit/expected_output_from_psum_binary.txt", "r");
     `else
-      out_file = $fopen("golden/os4bit/out.txt", "r");
+      out_file = $fopen("../datafiles/os4bit/out.txt", "r");
     `endif  
     // Following three lines are to remove the first three comment lines of the file
     out_scan_file = $fscanf(out_file,"%s", answer); 

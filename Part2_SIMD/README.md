@@ -136,7 +136,7 @@ pip install numpy
 
 ```bash
 git clone <repository-url>
-cd ECE284-Final-VLSI-Scream/Part2
+cd ECE284-Final-VLSI-Scream/Part2_SIMD
 ```
 
 ### 2. Verify Installation
@@ -153,8 +153,8 @@ make --version
 
 ```bash
 # Check that source files exist
-ls -la hardware/src/Mac/
-ls -la hardware/src/SFU/
+ls -la verilog/Mac/
+ls -la verilog/SFU/
 ```
 
 ## Quick Start
@@ -164,15 +164,12 @@ If you have the test data already prepared, you can directly run simulations:
 ```bash
 cd hardware
 
-# Run vanilla mode (4-bit, WS)
-make vanilla
+# Run all modes (default)
+make all
 
-# Run 2-bit mode (2-bit, WS)
-make act_2b
-
-# Note: The Makefile's 'all' target includes OS mode targets (os_vanilla, os_2b),
-# but Part 2 only supports WS mode. Those OS targets may fail or are not functional.
-# It is recommended to run vanilla and act_2b separately.
+# Or run individual modes:
+make vanilla    # 4-bit activation, WS mode
+make act_2b     # 2-bit activation, WS mode
 ```
 
 ### View Results
@@ -182,8 +179,8 @@ make act_2b
 make view
 
 # Check output files
-cat hardware/golden/ws4bit/out.txt        # For ws4bit mode
-cat hardware/golden/ws2bit/output.txt     # For ws2bit mode
+cat datafiles/ws4bit/out.txt        # For ws4bit mode
+cat datafiles/ws2bit/expected_output_from_psum_binary.txt     # For ws2bit mode
 ```
 
 > **Note**: If you need to prepare your own test data, see [Data Preparation](#data-preparation) section below.
@@ -191,43 +188,39 @@ cat hardware/golden/ws2bit/output.txt     # For ws2bit mode
 ## Project Structure
 
 ```
-Part2/
+Part2_SIMD/
 ├── README.md                 # This file
 │
 ├── hardware/                 # Hardware implementation
 │   ├── Makefile             # Build configuration
-│   ├── filelist             # Source file list
 │   │
-│   ├── src/                 # Verilog source code
+│   ├── verilog/             # All HDL sources
 │   │   ├── core_tb.v       # Testbench
 │   │   ├── core.v          # Top-level core module
 │   │   ├── corelet.v       # Corelet (MAC array + FIFOs)
-│   │   │
 │   │   ├── Mac/            # MAC array modules
 │   │   │   ├── mac_array.v # MAC array top-level
 │   │   │   ├── mac_row.v   # MAC row
 │   │   │   ├── mac_tile.v  # MAC tile (PE)
 │   │   │   └── mac.v       # Basic MAC unit
-│   │   │
 │   │   ├── SFU/            # Summation and Function Unit
 │   │   │   ├── SFU.v       # SFU main module
 │   │   │   ├── ReLU.v      # ReLU activation
 │   │   │   └── onij_calculator.v  # Output address calculator
-│   │   │
 │   │   ├── FIFO/           # FIFO modules
 │   │   │   ├── l0.v        # L0 FIFO
 │   │   │   ├── ofifo.v     # Output FIFO
+│   │   │   ├── ififo.v     # Input FIFO
 │   │   │   ├── fifo_depth64.v  # Base FIFO
 │   │   │   ├── fifo_mux_2_1.v  # 2-to-1 FIFO mux
 │   │   │   ├── fifo_mux_8_1.v  # 8-to-1 FIFO mux
 │   │   │   └── fifo_mux_16_1.v # 16-to-1 FIFO mux
-│   │   │
 │   │   └── SRAM/           # SRAM modules
 │   │       ├── sram_32b_w2048.v   # X_MEM
 │   │       ├── sram_128b_w16_RW.v # PSUM_MEM
 │   │       └── sram_64b_w256.v    # Additional SRAM
 │   │
-│   ├── golden/             # Test data
+│   ├── datafiles/           # Input files used by the testbench
 │   │   ├── ws4bit/         # WS mode, 4-bit data
 │   │   │   ├── activation_tile0.txt
 │   │   │   ├── weight_itile0_otile0_kij*.txt
@@ -237,9 +230,15 @@ Part2/
 │   │   └── ws2bit/         # WS mode, 2-bit data
 │   │       ├── activation_tile0.txt, activation_tile1.txt
 │   │       ├── weight_itile*_otile*_kij*.txt
-│   │       ├── output.txt
+│   │       ├── expected_output_from_psum_binary.txt
 │   │       ├── viz/        # Visualization files
 │   │       └── *.py        # Analysis scripts (parse.py, viz.py, calc_psum.py, etc.)
+│   │
+│   └── sim/                 # Simulation files and the runtime filelist
+│       └── filelist         # REQUIRED: Plain text file with relative paths (../verilog/) to design files
+│
+└── software/                # Quantization models and tools
+    └── ...
 ```
 
 ## Usage
@@ -267,22 +266,22 @@ make all
 |--------|-------------|--------|
 | `vanilla` | 4-bit activation, Weight Stationary mode | ✅ Supported |
 | `act_2b` | 2-bit activation, Weight Stationary mode | ✅ Supported |
-| `all` | Run all test modes sequentially | ⚠️ Includes OS targets (not supported in Part 2) |
+| `all` | Run all test modes sequentially (default) | ✅ Supported |
 | `clean` | Remove compiled files and VCD files | ✅ Supported |
-| `view` | View waveform with GTKWave (checks for core_tb.vcd) | ✅ Supported |
+| `view` | View waveform with GTKWave | ✅ Supported |
 | `help` | Show all available targets | ✅ Supported |
 
 > **Important Note**: 
 > - Part 2 **only supports Weight Stationary (WS) mode**. OS mode is not implemented in this version.
-> - The Makefile contains `os_vanilla` and `os_2b` targets, but these are **not functional** in Part 2 as there is no `filelist_os` and no OS mode test data.
-> - The `all` target will attempt to run OS modes, which may fail. It is recommended to run `vanilla` and `act_2b` separately.
+> - The `all` target runs `vanilla` and `act_2b` sequentially.
 
 ### Advanced Usage
 
 #### Custom Compilation
 
 ```bash
-# Compile with custom flags
+# Compile with custom flags (from hardware/ directory)
+cd sim
 iverilog -DACT_2BIT -f filelist -o compiled
 vvp compiled
 ```
@@ -294,14 +293,10 @@ vvp compiled
 make vanilla
 make view
 
-# Or manually (VCD filename depends on mode)
-# Note: VCD files are generated in hardware/ directory
-cd hardware
+# Or manually (VCD files are generated in sim/ directory)
+cd sim
 gtkwave core_tb_vanilla.vcd    # For vanilla mode
 gtkwave core_tb_2bit.vcd       # For 2-bit mode
-
-# Note: Makefile's 'view' target checks for core_tb.vcd which may not exist
-# Use the specific VCD filename based on the mode you ran
 ```
 
 #### Debug Mode
@@ -373,7 +368,7 @@ This section describes how to prepare your own test data if you want to use cust
 For 2-bit mode, you may need to convert weight files from other formats:
 
 ```bash
-cd hardware/golden/ws2bit
+cd datafiles/ws2bit
 python parse.py
 ```
 
@@ -389,7 +384,7 @@ Binary data files are not human-readable. Use the `viz.py` scripts to convert th
 #### For 4-bit Mode
 
 ```bash
-cd hardware/golden/ws4bit
+cd datafiles/ws4bit
 # Note: viz.py may need to be copied from ws2bit/ directory if it doesn't exist here
 python viz.py
 ```
@@ -397,7 +392,7 @@ python viz.py
 #### For 2-bit Mode
 
 ```bash
-cd hardware/golden/ws2bit
+cd datafiles/ws2bit
 python viz.py
 ```
 
@@ -417,10 +412,10 @@ python viz.py
 **Example usage:**
 ```bash
 # View converted activation data
-cat hardware/golden/ws4bit/viz/viz_activation_tile0.txt
+cat datafiles/ws4bit/viz/viz_activation_tile0.txt
 
 # View converted output
-cat hardware/golden/ws4bit/viz/viz_out.txt
+cat datafiles/ws4bit/viz/viz_out.txt
 ```
 
 ### Step 3: Calculate Expected PSUM (for 2-bit mode)
@@ -428,7 +423,7 @@ cat hardware/golden/ws4bit/viz/viz_out.txt
 For 2-bit mode, you can calculate expected partial sums:
 
 ```bash
-cd hardware/golden/ws2bit
+cd datafiles/ws2bit
 python calc_psum.py
 ```
 
@@ -439,15 +434,15 @@ python calc_psum.py
 
 ### Python Scripts Reference
 
-All data transformation scripts are located in `hardware/golden/ws2bit/`:
+All data transformation scripts are located in `datafiles/ws2bit/`:
 
 | Script | Location | Purpose | Notes |
 |--------|----------|---------|-------|
-| `parse.py` | `golden/ws2bit/` | Convert weight files from yufan format | Hardcoded paths, no args |
-| `viz.py` | `golden/ws2bit/` | Convert binary to decimal format | Run from ws2bit directory. For ws4bit, may need to copy from ws2bit/ |
-| `calc_psum.py` | `golden/ws2bit/` | Calculate expected psum values | Hardcoded paths, no args |
-| `verify_psum.py` | `golden/ws2bit/` | Verify calculated psums | Hardcoded paths, no args |
-| `make_expected_from_psum.py` | `golden/ws2bit/` | Generate expected output from psum | Hardcoded paths, no args |
+| `parse.py` | `datafiles/ws2bit/` | Convert weight files from yufan format | Hardcoded paths, no args |
+| `viz.py` | `datafiles/ws2bit/` | Convert binary to decimal format | Run from ws2bit directory. For ws4bit, may need to copy from ws2bit/ |
+| `calc_psum.py` | `datafiles/ws2bit/` | Calculate expected psum values | Hardcoded paths, no args |
+| `verify_psum.py` | `datafiles/ws2bit/` | Verify calculated psums | Hardcoded paths, no args |
+| `make_expected_from_psum.py` | `datafiles/ws2bit/` | Generate expected output from psum | Hardcoded paths, no args |
 
 ## Hardware Configuration
 
@@ -501,7 +496,7 @@ This SIMD approach allows the accelerator to adapt to different precision requir
 Test data is organized by mode and bit-width:
 
 ```
-golden/
+datafiles/
 ├── ws4bit/          # Weight Stationary, 4-bit
 │   ├── activation_tile0.txt
 │   ├── weight_itile0_otile0_kij*.txt
@@ -510,7 +505,7 @@ golden/
 └── ws2bit/          # Weight Stationary, 2-bit
     ├── activation_tile0.txt, activation_tile1.txt
     ├── weight_itile*_otile*_kij*.txt
-    └── output.txt           # Output file
+    └── expected_output_from_psum_binary.txt  # Expected output file
 ```
 
 ### Running Tests
@@ -520,8 +515,8 @@ golden/
 make vanilla
 
 # Verify output (testbench automatically compares)
-# For ws4bit: compares against hardware/golden/ws4bit/out.txt
-# For ws2bit: compares against hardware/golden/ws2bit/expected_output_from_psum_binary.txt
+# For ws4bit: compares against datafiles/ws4bit/out.txt
+# For ws2bit: compares against datafiles/ws2bit/expected_output_from_psum_binary.txt
 ```
 
 ### Expected Output Format
@@ -539,7 +534,7 @@ For easier debugging and verification, use the visualization scripts to convert 
 
 ```bash
 # Generate visualization files
-cd hardware/golden/ws4bit
+cd datafiles/ws4bit
 python viz.py
 
 # View human-readable output
@@ -567,17 +562,14 @@ This makes it much easier to:
 **Solution:**
 ```bash
 # Clean and rebuild
-cd hardware
 make clean
-# Note: clean only removes core_tb.vcd, but actual VCD files have mode-specific names
-# You may need to manually remove: core_tb_vanilla.vcd, core_tb_2bit.vcd, etc.
 make vanilla
 
 # Check filelist
-cat hardware/filelist
+cat sim/filelist
 
 # Verify source files exist
-ls -la hardware/src/Mac/
+ls -la verilog/Mac/
 ```
 
 #### Issue: Simulation fails
@@ -585,14 +577,13 @@ ls -la hardware/src/Mac/
 **Solution:**
 ```bash
 # Check testbench syntax
-cd hardware
-iverilog -t null src/core_tb.v
+iverilog -t null verilog/core_tb.v
 
-# Verify golden data exists
-ls -la hardware/golden/ws4bit/
+# Verify datafiles exist
+ls -la datafiles/ws4bit/
 
 # Check file paths in testbench
-grep "golden" hardware/src/core_tb.v
+grep "datafiles" verilog/core_tb.v
 ```
 
 #### Issue: Output mismatch
@@ -600,13 +591,13 @@ grep "golden" hardware/src/core_tb.v
 **Solution:**
 ```bash
 # Check weight file format
-head -n 5 hardware/golden/ws4bit/weight_itile0_otile0_kij0.txt
+head -n 5 datafiles/ws4bit/weight_itile0_otile0_kij0.txt
 
 # Compare with expected output (check testbench output)
 # The testbench will automatically compare and report mismatches
 
 # For 2-bit mode, verify psum calculations
-cd hardware/golden/ws2bit
+cd datafiles/ws2bit
 python verify_psum.py
 ```
 
@@ -657,8 +648,8 @@ make all
 
 ### Technical Documentation
 
-- **MAC Architecture**: See `hardware/src/Mac/` for implementation details
-- **Data Format**: See `golden/` for data format specifications
+- **MAC Architecture**: See `verilog/Mac/` for implementation details
+- **Data Format**: See `datafiles/` for data format specifications
 
 ### External Resources
 

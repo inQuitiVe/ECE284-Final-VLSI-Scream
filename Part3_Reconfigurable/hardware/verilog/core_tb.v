@@ -60,7 +60,7 @@ module core_tb;
   core #(.bw(bw), .psum_bw(psum_bw), .col(mac_col), .row(row)) core_instance (
     .clk          (clk                ),
     .reset        (reset              ),
-    .inst_w       (inst_w             ),  // high level instructions from TB
+    .inst_w       ({1'b0, inst_w}             ),  // high level instructions from TB
     .CEN_xmem     (CEN_xmem           ),  // x_mem ctrls from TB
     .WEN_xmem     (WEN_xmem           ),
     .A_xmem       (A_xmem             ),
@@ -105,10 +105,10 @@ module core_tb;
     `endif
 
     `ifdef ACT_2BIT
-      x_file = $fopen("golden/ws2bit/activation_tile0.txt", "r");
-      x1_file = $fopen("golden/ws2bit/activation_tile1.txt", "r");
+      x_file = $fopen("../datafiles/ws2bit/activation_tile0.txt", "r");
+      x1_file = $fopen("../datafiles/ws2bit/activation_tile1.txt", "r");
     `else
-      x_file = $fopen("golden/ws4bit/activation_tile0.txt", "r");
+      x_file = $fopen("../datafiles/ws4bit/activation_tile0.txt", "r");
     `endif
     // Following three lines are to remove the first three comment lines of the file
     x_scan_file = $fscanf(x_file,"%s", captured_data);
@@ -186,27 +186,27 @@ module core_tb;
 
     `ifdef ACT_2BIT
       case (kij)
-        0: begin w_file_name = "golden/ws2bit/weight_itile0_otile0_kij0.txt"; w1_file_name = "golden/ws2bit/weight_itile1_otile0_kij0.txt"; end
-        1: begin w_file_name = "golden/ws2bit/weight_itile0_otile0_kij1.txt"; w1_file_name = "golden/ws2bit/weight_itile1_otile0_kij1.txt"; end
-        2: begin w_file_name = "golden/ws2bit/weight_itile0_otile0_kij2.txt"; w1_file_name = "golden/ws2bit/weight_itile1_otile0_kij2.txt"; end
-        3: begin w_file_name = "golden/ws2bit/weight_itile0_otile0_kij3.txt"; w1_file_name = "golden/ws2bit/weight_itile1_otile0_kij3.txt"; end
-        4: begin w_file_name = "golden/ws2bit/weight_itile0_otile0_kij4.txt"; w1_file_name = "golden/ws2bit/weight_itile1_otile0_kij4.txt"; end
-        5: begin w_file_name = "golden/ws2bit/weight_itile0_otile0_kij5.txt"; w1_file_name = "golden/ws2bit/weight_itile1_otile0_kij5.txt"; end
-        6: begin w_file_name = "golden/ws2bit/weight_itile0_otile0_kij6.txt"; w1_file_name = "golden/ws2bit/weight_itile1_otile0_kij6.txt"; end
-        7: begin w_file_name = "golden/ws2bit/weight_itile0_otile0_kij7.txt"; w1_file_name = "golden/ws2bit/weight_itile1_otile0_kij7.txt"; end
-        8: begin w_file_name = "golden/ws2bit/weight_itile0_otile0_kij8.txt"; w1_file_name = "golden/ws2bit/weight_itile1_otile0_kij8.txt"; end
+        0: begin w_file_name = "../datafiles/ws2bit/weight_itile0_otile0_kij0.txt"; w1_file_name = "../datafiles/ws2bit/weight_itile1_otile0_kij0.txt"; end
+        1: begin w_file_name = "../datafiles/ws2bit/weight_itile0_otile0_kij1.txt"; w1_file_name = "../datafiles/ws2bit/weight_itile1_otile0_kij1.txt"; end
+        2: begin w_file_name = "../datafiles/ws2bit/weight_itile0_otile0_kij2.txt"; w1_file_name = "../datafiles/ws2bit/weight_itile1_otile0_kij2.txt"; end
+        3: begin w_file_name = "../datafiles/ws2bit/weight_itile0_otile0_kij3.txt"; w1_file_name = "../datafiles/ws2bit/weight_itile1_otile0_kij3.txt"; end
+        4: begin w_file_name = "../datafiles/ws2bit/weight_itile0_otile0_kij4.txt"; w1_file_name = "../datafiles/ws2bit/weight_itile1_otile0_kij4.txt"; end
+        5: begin w_file_name = "../datafiles/ws2bit/weight_itile0_otile0_kij5.txt"; w1_file_name = "../datafiles/ws2bit/weight_itile1_otile0_kij5.txt"; end
+        6: begin w_file_name = "../datafiles/ws2bit/weight_itile0_otile0_kij6.txt"; w1_file_name = "../datafiles/ws2bit/weight_itile1_otile0_kij6.txt"; end
+        7: begin w_file_name = "../datafiles/ws2bit/weight_itile0_otile0_kij7.txt"; w1_file_name = "../datafiles/ws2bit/weight_itile1_otile0_kij7.txt"; end
+        8: begin w_file_name = "../datafiles/ws2bit/weight_itile0_otile0_kij8.txt"; w1_file_name = "../datafiles/ws2bit/weight_itile1_otile0_kij8.txt"; end
       endcase
     `else
       case (kij)
-        0: w_file_name = "golden/ws4bit/weight_itile0_otile0_kij0.txt";
-        1: w_file_name = "golden/ws4bit/weight_itile0_otile0_kij1.txt";
-        2: w_file_name = "golden/ws4bit/weight_itile0_otile0_kij2.txt";
-        3: w_file_name = "golden/ws4bit/weight_itile0_otile0_kij3.txt";
-        4: w_file_name = "golden/ws4bit/weight_itile0_otile0_kij4.txt";
-        5: w_file_name = "golden/ws4bit/weight_itile0_otile0_kij5.txt";
-        6: w_file_name = "golden/ws4bit/weight_itile0_otile0_kij6.txt";
-        7: w_file_name = "golden/ws4bit/weight_itile0_otile0_kij7.txt";
-        8: w_file_name = "golden/ws4bit/weight_itile0_otile0_kij8.txt";
+        0: w_file_name = "../datafiles/ws4bit/weight_itile0_otile0_kij0.txt";
+        1: w_file_name = "../datafiles/ws4bit/weight_itile0_otile0_kij1.txt";
+        2: w_file_name = "../datafiles/ws4bit/weight_itile0_otile0_kij2.txt";
+        3: w_file_name = "../datafiles/ws4bit/weight_itile0_otile0_kij3.txt";
+        4: w_file_name = "../datafiles/ws4bit/weight_itile0_otile0_kij4.txt";
+        5: w_file_name = "../datafiles/ws4bit/weight_itile0_otile0_kij5.txt";
+        6: w_file_name = "../datafiles/ws4bit/weight_itile0_otile0_kij6.txt";
+        7: w_file_name = "../datafiles/ws4bit/weight_itile0_otile0_kij7.txt";
+        8: w_file_name = "../datafiles/ws4bit/weight_itile0_otile0_kij8.txt";
       endcase
     `endif
     
@@ -330,20 +330,19 @@ module core_tb;
     `endif
   end  // end of kij loop
 
-  $display("## Conv End. Waiting for ReLU\n");
+    $display("## Conv End. Waiting for ReLU\n");
     for (i=0; i<20 ; i=i+1) begin
       #0.5 clk = 1'b0;
       #0.5 clk = 1'b1;  
     end
 
 
-
   $display("############ Output Verification Start #############"); 
   `ifdef ACT_2BIT
-    // out_file = $fopen("golden/ws2bit/output.txt", "r");
-    out_file = $fopen("golden/ws2bit/expected_output_from_psum_binary.txt", "r");
+    // out_file = $fopen("../datafiles/ws2bit/output.txt", "r");
+    out_file = $fopen("../datafiles/ws2bit/expected_output_from_psum_binary.txt", "r");
   `else
-    out_file = $fopen("golden/ws4bit/out.txt", "r");
+    out_file = $fopen("../datafiles/ws4bit/out.txt", "r");
   `endif  
   // Following three lines are to remove the first three comment lines of the file
   out_scan_file = $fscanf(out_file,"%s", answer); 

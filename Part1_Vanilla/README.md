@@ -15,19 +15,27 @@ Part 1 is the basic implementation of the 2D systolic array-based AI accelerator
 
 ## Directory Structure
 ```
-Part1/
-├── hardware/
-│   ├── src/
+Part1_Vanilla/
+├── hardware/              # Hardware implementation
+│   ├── verilog/           # All HDL sources
 │   │   ├── core_tb.v      # Testbench
 │   │   ├── core.v         # Top-level core module
-│   │   └── SFU/           # Summation and Function Unit
-│   │       ├── SFU.v      # SFU main module
-│   │       ├── ReLU.v     # ReLU activation function
-│   │       └── onij_calculator.v  # Output address calculator
-│   └── golden/            # Test data files
-│       ├── out.txt        # Expected output
-│       └── viz/           # Human-readable format
-│           └── viz_out.txt
+│   │   ├── corelet.v      # Corelet module
+│   │   ├── SFU/           # Summation and Function Unit
+│   │   │   ├── SFU.v      # SFU main module
+│   │   │   ├── ReLU.v     # ReLU activation function
+│   │   │   └── onij_calculator.v  # Output address calculator
+│   │   ├── Mac/           # MAC array modules
+│   │   ├── FIFO/          # FIFO modules
+│   │   └── SRAM/          # SRAM modules
+│   ├── datafiles/         # Input files used by the testbench
+│   │   ├── activation_tile0.txt
+│   │   ├── weight_itile0_otile0_kij*.txt
+│   │   ├── out.txt        # Expected output
+│   │   └── viz/           # Human-readable format
+│   │       └── viz_out.txt
+│   └── sim/               # Simulation files and the runtime filelist
+│       └── filelist       # REQUIRED: Plain text file with relative paths (../verilog/) to design files
 └── software/
     └── Part1_golden_gen.ipynb  # Golden pattern generator
 ```
@@ -41,14 +49,23 @@ For the key features and design concept for Alpha 7, see Alpha 7 folder.
 
 
 ## Testbench Usage
-Ihe instructions are same as what we used in class.
-```bash
-cd Part1/hardware/
-iveri filelist
-irun compiled
 
-### The correct results will be printed out here.
+### Using Makefile (Recommended)
+
+```bash
+cd Part1_Vanilla/hardware
+make vanilla
 ```
+
+### Manual Compilation
+
+```bash
+cd Part1_Vanilla/hardware
+iverilog -f sim/filelist -o compiled
+vvp compiled
+```
+
+The correct results will be printed out here.
 
 
 ## Testbench Design
@@ -61,8 +78,11 @@ irun compiled
 7. Finally, tb compares output with golden data, and report any mismatches
 
 
-## Golden Pattern Format
-The pattern has the same format as the assignments.
+## Data Format
+
+The test data files are located in `datafiles/`:
+- **`activation_tile0.txt`**: Input activation data in binary format
+- **`weight_itile0_otile0_kij*.txt`**: Weight data files (kij: 0-8)
 - **`out.txt`**: Expected output in binary format
 - **`viz/viz_out.txt`**: Human-readable decimal format for verification
 

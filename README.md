@@ -133,12 +133,25 @@ The design achieves significant improvements in area efficiency, power consumpti
 ECE284-Final-VLSI-Scream/
 ├── Part1_Vanilla/           # Part 1: Vanilla implementation
 │   ├── hardware/            # Hardware implementation
+│   │   ├── verilog/         # All HDL sources
+│   │   ├── datafiles/       # Input files used by the testbench
+│   │   └── sim/             # Simulation files and the runtime filelist
+│   │       └── filelist     # REQUIRED: Relative paths to design files under verilog/
 │   └── software/            # Software tools and golden data generation
 ├── Part2_SIMD/              # Part 2: 2-bit/4-bit SIMD (Weight Stationary only)
 │   ├── hardware/            # Hardware with SIMD support, WS mode only
+│   │   ├── verilog/         # All HDL sources
+│   │   ├── datafiles/       # Input files used by the testbench
+│   │   └── sim/             # Simulation files and the runtime filelist
+│   │       └── filelist     # REQUIRED: Relative paths to design files under verilog/
 │   └── software/            # Quantization models and tools
 ├── Part3_Reconfigurable/    # Part 3: OS/WS reconfigurable + 2-bit/4-bit SIMD
 │   ├── hardware/            # Full reconfigurable hardware (OS/WS + 2-bit/4-bit)
+│   │   ├── verilog/         # All HDL sources
+│   │   ├── datafiles/       # Input files used by the testbench
+│   │   └── sim/             # Simulation files and the runtime filelist
+│   │       ├── filelist     # REQUIRED: OS mode file list (default)
+│   │       └── filelist_ws  # REQUIRED: WS mode file list
 │   └── software/            # Quantization models and tools
 ├── Part4_Poster/            # Project poster and documentation
 │   └── VLSI_Scream_Final_Poster.pdf
