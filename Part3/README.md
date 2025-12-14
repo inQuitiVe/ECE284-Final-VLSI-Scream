@@ -1,4 +1,4 @@
-# Alpha 1: MAC Implementation
+# Part 3: WS/OS Dataflow Fusion
 
 [![Status](https://img.shields.io/badge/status-stable-green.svg)]()
 [![Hardware](https://img.shields.io/badge/hardware-FPGA-blue.svg)]()
@@ -24,7 +24,15 @@
 
 ## Overview
 
-Alpha 1 provides the foundational MAC (Multiply-Accumulate) unit implementations for the 2D systolic array accelerator. This version explores different MAC architectures including vanilla and Output Stationary (OS) implementations, with support for 2-bit/4-bit SIMD reconfiguration and OS/WS dataflow modes.
+Part 3 implements the fusion of Weight Stationary (WS) and Output Stationary (OS) dataflow modes in a unified 2D systolic array accelerator. While the primary requirement was to combine WS and OS dataflow capabilities, the design also incorporates 2-bit/4-bit SIMD reconfiguration support during the implementation phase. As a result, this version shares the same comprehensive design as Alpha 1, providing a complete fusion of both dataflow modes and bit-width configurations.
+
+### Design Philosophy
+
+Although the specification only required the fusion of WS and OS dataflow modes, we proactively integrated 2-bit/4-bit SIMD support during the design process. This decision ensures that Part 3 provides the same full-featured implementation as Alpha 1, enabling seamless switching between:
+- **Dataflow modes**: Weight Stationary (WS) and Output Stationary (OS)
+- **Bit-width modes**: 4-bit (vanilla) and 2-bit (SIMD) activation processing
+
+This unified design allows for comprehensive testing and comparison across all configuration combinations.
 
 ### Key Innovations
 
@@ -137,7 +145,7 @@ pip install numpy
 
 ```bash
 git clone <repository-url>
-cd ECE284-Final-VLSI-Scream/Alpha/Alpha1
+cd ECE284-Final-VLSI-Scream/Part3
 ```
 
 ### 2. Verify Installation
@@ -197,7 +205,7 @@ cat hardware/golden/ws2bit/output.txt     # For ws2bit mode
 ## Project Structure
 
 ```
-Alpha1/
+Part3/
 ├── README.md                 # This file
 │
 ├── hardware/                 # Hardware implementation
@@ -815,8 +823,9 @@ make all
 
 ## References
 
-### Related Alpha Versions
+### Related Project Versions
 
+- **Alpha 1**: MAC Implementation (same comprehensive design as Part 3)
 - **Alpha 2**: MAC Array Components (hierarchical structure)
 - **Alpha 4**: Whole Conv Layer (complete pipeline)
 - **Alpha 6**: Flexible Activation Functions
@@ -844,11 +853,11 @@ Please do not spread this code without permission
 If you use this implementation in your research, please cite:
 
 ```bibtex
-@misc{alpha1_mac,
-  title={MAC Implementation for Reconfigurable 2D Systolic Array Accelerator},
+@misc{part3_ws_os_fusion,
+  title={WS/OS Dataflow Fusion for Reconfigurable 2D Systolic Array Accelerator},
   author={VVIP Lab, UCSD},
   year={2024},
-  note={Alpha 1 of ECE284 Final Project}
+  note={Part 3 of ECE284 Final Project}
 }
 ```
 
