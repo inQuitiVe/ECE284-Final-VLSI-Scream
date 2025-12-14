@@ -1,5 +1,44 @@
-# Part 1 - Vanilla Version with Alpha 7 (SFU as controller)
+# Part 1: Vanilla Version with Alpha 7 (SFU as controller)
+
+# Part 1: Vanilla Version
+
+## Overview
+Part 1 is the basic implementation of the 2D systolic array-based AI accelerator. This version provides the foundational architecture with standard 4-bit activation processing and Weight Stationary (WS) dataflow.
+
+## Features
+- **Basic 2D Systolic Array**: 8×8 MAC array implementation
+- **Weight Stationary Dataflow**: Fixed WS mode
+- **4-bit Activation Processing**: Standard 4-bit activation and weight bit-width
+- **ReLU Activation**: Standard ReLU activation function in SFU
+- **Complete Pipeline**: MAC array → SFU → Output
+
+
+## Directory Structure
+```
+Part1/
+├── hardware/
+│   ├── src/
+│   │   ├── core_tb.v      # Testbench
+│   │   ├── core.v         # Top-level core module
+│   │   └── SFU/           # Summation and Function Unit
+│   │       ├── SFU.v      # SFU main module
+│   │       ├── ReLU.v     # ReLU activation function
+│   │       └── onij_calculator.v  # Output address calculator
+│   └── golden/            # Test data files
+│       ├── out.txt        # Expected output
+│       └── viz/           # Human-readable format
+│           └── viz_out.txt
+└── software/
+    └── Part1_golden_gen.ipynb  # Golden pattern generator
+```
+
+
+### SFU (Special Function Unit)
 For the key features and design concept for Alpha 7, see Alpha 7 folder.
+- Accumulates partial sums from MAC array
+- Applies ReLU activation function
+- Manages PSUM memory read/write operations
+
 
 ## Testbench Usage
 Ihe instructions are same as what we used in class.
@@ -19,7 +58,45 @@ irun compiled
 4. SFU do the calculation snd accumulation. After that, core.v enters IDLE state, waiting for the reset signal.
 5. Repeat 2.~4. for kij=1,2...8
 6. Note that after accumulation state of kij=8, SFU performs ReLU, then enters IDLE state to wait for tb readout signal.
+7. Finally, tb compares output with golden data, and report any mismatches
 
 
 ## Golden Pattern Format
 The pattern has the same format as the assignments.
+- **`out.txt`**: Expected output in binary format
+- **`viz/viz_out.txt`**: Human-readable decimal format for verification
+
+
+
+## Notes
+- This is the baseline version without reconfiguration features
+- All subsequent parts (Part2, Part3) extend this basic implementation
+- Used as reference for understanding the core architecture
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
