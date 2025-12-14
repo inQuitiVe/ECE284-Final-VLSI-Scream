@@ -75,7 +75,7 @@ module SFU #(
     generate
         for(i=0; i<col; i=i+1)begin
             assign D_pmem[(i+1)*psum_bw-1 : i*psum_bw] = (state==S_ReLU) ? ReLU_out[i] :
-                                                         (state==S_Acc && kij==4'd0)  ?  ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw] : (Q_pmem[(i+1)*psum_bw-1 : i*psum_bw]+ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw]);
+                                                         (state==S_Acc && kij==4'd0)  ?  ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw] : $signed(Q_pmem[(i+1)*psum_bw-1 : i*psum_bw])+$signed(ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw]);
         end
     endgenerate
 

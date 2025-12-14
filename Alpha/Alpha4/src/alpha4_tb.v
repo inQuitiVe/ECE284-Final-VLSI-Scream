@@ -23,6 +23,7 @@ wire [psum_bw*col-1:0] readout;
 reg [3:0] kij_SFUctrl;
 reg                     ofifo_valid;
 reg [psum_bw*col-1 : 0] ofifo_data;
+reg [psum_bw*col-1 : 0] bias;
 
 // Connect PMEM and SFU.
 wire [psum_bw*col-1:0]  Q_pmem;
@@ -53,6 +54,7 @@ SFU#(.psum_bw(psum_bw), .col(col)) SFU_instance(
   // sense signal from ofifo and output ctrl
   .ofifo_valid(ofifo_valid),
   .ofifo_data(ofifo_data),
+  .bias(bias),
   // data in and ctrl signal for PSUM SRAM
   .Q_pmem(Q_pmem),  
   .ren_pmem(ren_pmem),
@@ -84,6 +86,8 @@ sram_128b_w16_RW P_MEM_instance(
 initial begin 
   kij_SFUctrl    = 0;
   readout_start = 0;
+
+  bias = {(psum_bw*col){1'b0}};
 
   $dumpfile("alpha4_tb.vcd");
   $dumpvars(0, alpha4_tb);
@@ -187,7 +191,9 @@ initial begin
   #0.5 clk = 1'b0; readout_start = 1'b0;
   #0.5 clk = 1'b1; // Clock Pos Edge2: readout port starts output
 
-  for (i=0; i<len_onij; i=i+1) begin 
+
+  // Output is MaxPooled!
+  for (i=0; i<4; i=i+1) begin 
     #0.5 clk = 1'b0; // Clock Neg Edge
 
     out_scan_file = $fscanf(out_file,"%128b", answer); // reading from out file to answer

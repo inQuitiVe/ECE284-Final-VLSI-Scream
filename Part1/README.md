@@ -1,19 +1,19 @@
+# Part 1: Vanilla Version with Alpha 7 (SFU as controller)
+
 # Part 1: Vanilla Version
 
 ## Overview
-
 Part 1 is the basic implementation of the 2D systolic array-based AI accelerator. This version provides the foundational architecture with standard 4-bit activation processing and Weight Stationary (WS) dataflow.
 
 ## Features
-
 - **Basic 2D Systolic Array**: 8×8 MAC array implementation
 - **Weight Stationary Dataflow**: Fixed WS mode
 - **4-bit Activation Processing**: Standard 4-bit activation and weight bit-width
 - **ReLU Activation**: Standard ReLU activation function in SFU
 - **Complete Pipeline**: MAC array → SFU → Output
 
-## Directory Structure
 
+## Directory Structure
 ```
 Part1/
 ├── hardware/
@@ -32,44 +32,71 @@ Part1/
     └── Part1_golden_gen.ipynb  # Golden pattern generator
 ```
 
-## Hardware Components
 
-### Core Module
-- **Input**: Activation and weight data through X_MEM
-- **Processing**: 2D systolic array computation
-- **Output**: Partial sums processed through SFU with ReLU
-
-### SFU (Summation and Function Unit)
+### SFU (Special Function Unit)
+For the key features and design concept for Alpha 7, see Alpha 7 folder.
 - Accumulates partial sums from MAC array
 - Applies ReLU activation function
 - Manages PSUM memory read/write operations
 
-## Golden Data
 
+## Testbench Usage
+Ihe instructions are same as what we used in class.
+```bash
+cd Part1/hardware/
+iveri filelist
+irun compiled
+
+### The correct results will be printed out here.
+```
+
+
+## Testbench Design
+1. tb writes activation.txt in SRAM(xmem), starting from address `11'b00000000000`. 
+2. tb writes kij0 weight.txt in SRAM(xmem), starting from address `11'b10000000000`. 
+3. tb feeds SRAM read address/enable and instruction(kernel load/execution) to `core.v`. Note that the instructions are delayed 1 cycle from the read control signals, in order to align with the 1-cycle latency of SRAM.
+4. SFU do the calculation snd accumulation. After that, core.v enters IDLE state, waiting for the reset signal.
+5. Repeat 2.~4. for kij=1,2...8
+6. Note that after accumulation state of kij=8, SFU performs ReLU, then enters IDLE state to wait for tb readout signal.
+7. Finally, tb compares output with golden data, and report any mismatches
+
+
+## Golden Pattern Format
+The pattern has the same format as the assignments.
 - **`out.txt`**: Expected output in binary format
 - **`viz/viz_out.txt`**: Human-readable decimal format for verification
 
-## Usage
 
-### Compilation
-
-```bash
-cd Part1/hardware/src
-iverilog -o compiled core_tb.v core.v SFU/*.v
-vvp compiled
-```
-
-### Simulation
-
-The testbench (`core_tb.v`) will:
-1. Load activation and weight data
-2. Execute the convolution operation
-3. Compare output with golden data
-4. Report any mismatches
 
 ## Notes
-
 - This is the baseline version without reconfiguration features
 - All subsequent parts (Part2, Part3) extend this basic implementation
 - Used as reference for understanding the core architecture
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
