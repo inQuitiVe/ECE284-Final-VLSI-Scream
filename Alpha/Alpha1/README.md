@@ -182,8 +182,6 @@ cat hardware/golden/ws2bit/output.txt     # For ws2bit mode
 ```
 Alpha1/
 ├── README.md                 # This file
-├── Makefile                  # Top-level Makefile
-├── filelist                  # Verilog source file list
 │
 ├── hardware/                 # Hardware implementation
 │   ├── Makefile             # Build configuration
