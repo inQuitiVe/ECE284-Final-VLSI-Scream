@@ -6,7 +6,6 @@
 - Reduced PSUM memory size to 4.93%\
 Original: $nij \times och \times kij \times psum\_ bw$ (5.0625MB) \
 Our Design: $o\_ nij \times och \times psum\_ bw$  (0.25MB)
-- Good FSM structure for features that  
 
 ## Important Notes
 In reality, this FSM implementation innovation already exists in all versions of this project. Alpha7 serves only as a marker point to document this design characteristic.

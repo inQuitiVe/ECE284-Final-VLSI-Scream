@@ -7,6 +7,7 @@ module SFU #(
     // sense signal from ofifo and output ctrl
     input                     ofifo_valid,
     input [psum_bw*col-1:0]   ofifo_data,
+    input [psum_bw*col-1:0]   bias,
     // data in and ctrl signal for PSUM SRAM
     input  [psum_bw*col-1:0]  Q_pmem,  
     output                    ren_pmem,
@@ -110,7 +111,11 @@ module SFU #(
     generate
         for(i=0; i<col; i=i+1)begin
             assign D_pmem[(i+1)*psum_bw-1 : i*psum_bw] = (state==S_SPF) ? ReLU_out[i]:
-                                                         (state==S_Acc && kij==4'd0)  ?  ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw] : (Q_pmem[(i+1)*psum_bw-1 : i*psum_bw]+ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw]);
+                                                         (state==S_Acc && kij==4'd0)  ? $signed(bias[(i+1)*psum_bw-1 : i*psum_bw]) + 
+                                                                                        $signed(ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw]) : 
+
+                                                                                        $signed(Q_pmem[(i+1)*psum_bw-1 : i*psum_bw]) +
+                                                                                        $signed(ofifo_data_D2[(i+1)*psum_bw-1 : i*psum_bw]);
         end
     endgenerate
 
