@@ -1,2 +1,2 @@
-src/decoder_tb.v
-src/huffman_decoder.v
+./hardware/decoder_tb.v
+./hardware/huffman_decoder.v

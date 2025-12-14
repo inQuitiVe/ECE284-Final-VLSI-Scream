@@ -15,7 +15,9 @@ Alpha 3 implements a Huffman decoder for data compression/decompression. This mo
 
 ```
 Alpha3/
-└── huffman_decoder.v    # Huffman decoder module
+└── hardware    # Huffman decoder module
+    └──huffman_decoder.v
+    └──decoder_tb.v
 ```
 
 ## Module Description
@@ -60,8 +62,8 @@ huffman_decoder decoder (
 
 ```bash
 # Compile and test
-iverilog -o test_huffman huffman_decoder.v huffman_tb.v
-vvp test_huffman
+iverilog -o compiled -c filelist
+vvp compiled
 ```
 
 ## Operation Flow
