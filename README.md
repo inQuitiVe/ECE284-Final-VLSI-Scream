@@ -157,7 +157,13 @@ ECE284-Final-VLSI-Scream/
 │   └── VLSI_Scream_Final_Poster.pdf
 ├── Part5_Alpha/             # Alpha versions with innovations
 │   ├── Alpha1/              # MAC Implementation (baseline, full features)
-│   │   └── hardware/        # Complete hardware with OS/WS and 2-bit/4-bit
+│   │   ├── hardware/        # Complete hardware with OS/WS and 2-bit/4-bit
+│   │   │   ├── src/         # All HDL sources
+│   │   │   ├── golden/      # Test data files
+│   │   │   ├── filelist     # WS mode file list
+│   │   │   ├── filelist_os  # OS mode file list
+│   │   │   └── Makefile     # Build configuration
+│   │   └── README.md        # Detailed documentation
 │   ├── Alpha2/              # Basic implementation
 │   │   ├── hardware/
 │   │   └── software/
